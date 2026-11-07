@@ -1,3 +1,5 @@
+import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -63,7 +65,7 @@ android {
 }
 
 googleServices {
-    missingGoogleServicesStrategy = "warn"
+    missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN
 }
 
 dependencies {
