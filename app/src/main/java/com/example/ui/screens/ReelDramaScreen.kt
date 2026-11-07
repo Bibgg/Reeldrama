@@ -76,7 +76,9 @@ fun ReelDramaScreen(
     // When user swipes pager up/down, update ViewModel's selected episode
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { pageIndex ->
-            if (pageIndex in episodes.indices) {
+            // selectEpisode खुद जाँच लेता है कि index सही है या नहीं।
+            // यहाँ पुरानी `episodes` लिस्ट इस्तेमाल करने से सर्वर वाले लंबे ड्रामा में swipe रुक जाता था।
+            if (pageIndex >= 0) {
                 viewModel.selectEpisode(pageIndex)
             }
         }

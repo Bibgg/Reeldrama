@@ -3,10 +3,6 @@ const dotenv = require('dotenv');
 const Drama = require('../models/Drama');
 const Episode = require('../models/Episode');
 
-dotenv.config({ path: '../.env' });
-
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/reeldrama';
-
 const sampleDramas = [
   {
     title: "Billionaire's Secret Bride",
@@ -62,88 +58,105 @@ const videoStreamUrls = [
   "https://res.cloudinary.com/demo/video/upload/dog.mp4"
 ];
 
-async function seedDatabase() {
+function buildEpisodes(dramaId) {
+  return [
+    {
+      drama: dramaId,
+      episodeNumber: 1,
+      title: "The Disowned Heiress Returns",
+      videoUrl: videoStreamUrls[0],
+      durationSec: 82,
+      introHook: "Five years after being framed and cast out, she returns to claim what is rightfully hers.",
+      likesCount: 48200,
+      sharesCount: 1200,
+      subtitles: [
+        { startSec: 1, endSec: 4, text: "They thought I was gone for good." },
+        { startSec: 5, endSec: 9, text: "Tonight, every debt in this ballroom will be paid in full." },
+        { startSec: 10, endSec: 15, text: "Who invited that beggar to the President's table?!" }
+      ]
+    },
+    {
+      drama: dramaId,
+      episodeNumber: 2,
+      title: "Contract Marriage at Midnight",
+      videoUrl: videoStreamUrls[1],
+      durationSec: 95,
+      introHook: "CEO Ethan Vance hands her a pen. 'Marry me for one year, and I'll crush your enemies.'",
+      likesCount: 52100,
+      sharesCount: 2100,
+      subtitles: [
+        { startSec: 1, endSec: 5, text: "Sign here, Miss Amelia." },
+        { startSec: 6, endSec: 10, text: "One year. No emotional attachment. Unlimited power." },
+        { startSec: 11, endSec: 15, text: "Deal, Mr. Vance." }
+      ]
+    },
+    {
+      drama: dramaId,
+      episodeNumber: 3,
+      title: "Slap in the VIP Banquet",
+      videoUrl: videoStreamUrls[2],
+      durationSec: 78,
+      introHook: "The arrogant step-sister tries to throw wine at Amelia—until security bows at Amelia's feet.",
+      likesCount: 67800,
+      sharesCount: 3800
+    },
+    {
+      drama: dramaId,
+      episodeNumber: 4,
+      title: "The Hidden Stockholder",
+      videoUrl: videoStreamUrls[3],
+      durationSec: 88,
+      introHook: "The board tries to oust Ethan—until the mysterious 30% majority owner walks in.",
+      likesCount: 71200,
+      sharesCount: 4200
+    },
+    {
+      drama: dramaId,
+      episodeNumber: 5,
+      title: "Unmasked in the Rain",
+      videoUrl: videoStreamUrls[4],
+      durationSec: 91,
+      introHook: "Ethan finally notices the silver butterfly pendant around her neck: 'It was you all along.'",
+      likesCount: 89400,
+      sharesCount: 6500
+    }
+  ];
+}
+
+// डेटाबेस पहले से connect होना चाहिए। पुराना सब मिटाकर सैंपल भरता है।
+async function populate() {
+  console.log('Cleaning existing records...');
+  await Drama.deleteMany({});
+  await Episode.deleteMany({});
+
+  for (const dramaData of sampleDramas) {
+    const drama = await Drama.create(dramaData);
+    console.log(`Created Drama: ${drama.title}`);
+
+    // Seed 5 sample episodes for each drama
+    const episodesToCreate = buildEpisodes(drama._id);
+    await Episode.insertMany(episodesToCreate);
+    console.log(`Created ${episodesToCreate.length} episodes for ${drama.title}`);
+  }
+}
+
+// सिर्फ़ तब भरता है जब कोई ड्रामा न हो। server.js में AUTO_SEED=true पर यही चलता है।
+async function seedIfEmpty() {
+  const count = await Drama.countDocuments();
+  if (count > 0) return false;
+  await populate();
+  return true;
+}
+
+// `npm run seed` से सीधे चलाने पर (पुराना व्यवहार: सब मिटाकर नया भरता है)
+async function runStandalone() {
+  dotenv.config({ path: '../.env' });
+  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/reeldrama';
   try {
     console.log('Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
     console.log('MongoDB Connected successfully!');
-
-    console.log('Cleaning existing records...');
-    await Drama.deleteMany({});
-    await Episode.deleteMany({});
-
-    for (const dramaData of sampleDramas) {
-      const drama = await Drama.create(dramaData);
-      console.log(`Created Drama: ${drama.title}`);
-
-      // Seed 5 sample episodes for each drama
-      const episodesToCreate = [
-        {
-          drama: drama._id,
-          episodeNumber: 1,
-          title: "The Disowned Heiress Returns",
-          videoUrl: videoStreamUrls[0],
-          durationSec: 82,
-          introHook: "Five years after being framed and cast out, she returns to claim what is rightfully hers.",
-          likesCount: 48200,
-          sharesCount: 1200,
-          subtitles: [
-            { startSec: 1, endSec: 4, text: "They thought I was gone for good." },
-            { startSec: 5, endSec: 9, text: "Tonight, every debt in this ballroom will be paid in full." },
-            { startSec: 10, endSec: 15, text: "Who invited that beggar to the President's table?!" }
-          ]
-        },
-        {
-          drama: drama._id,
-          episodeNumber: 2,
-          title: "Contract Marriage at Midnight",
-          videoUrl: videoStreamUrls[1],
-          durationSec: 95,
-          introHook: "CEO Ethan Vance hands her a pen. 'Marry me for one year, and I'll crush your enemies.'",
-          likesCount: 52100,
-          sharesCount: 2100,
-          subtitles: [
-            { startSec: 1, endSec: 5, text: "Sign here, Miss Amelia." },
-            { startSec: 6, endSec: 10, text: "One year. No emotional attachment. Unlimited power." },
-            { startSec: 11, endSec: 15, text: "Deal, Mr. Vance." }
-          ]
-        },
-        {
-          drama: drama._id,
-          episodeNumber: 3,
-          title: "Slap in the VIP Banquet",
-          videoUrl: videoStreamUrls[2],
-          durationSec: 78,
-          introHook: "The arrogant step-sister tries to throw wine at Amelia—until security bows at Amelia's feet.",
-          likesCount: 67800,
-          sharesCount: 3800
-        },
-        {
-          drama: drama._id,
-          episodeNumber: 4,
-          title: "The Hidden Stockholder",
-          videoUrl: videoStreamUrls[3],
-          durationSec: 88,
-          introHook: "The board tries to oust Ethan—until the mysterious 30% majority owner walks in.",
-          likesCount: 71200,
-          sharesCount: 4200
-        },
-        {
-          drama: drama._id,
-          episodeNumber: 5,
-          title: "Unmasked in the Rain",
-          videoUrl: videoStreamUrls[4],
-          durationSec: 91,
-          introHook: "Ethan finally notices the silver butterfly pendant around her neck: 'It was you all along.'",
-          likesCount: 89400,
-          sharesCount: 6500
-        }
-      ];
-
-      await Episode.insertMany(episodesToCreate);
-      console.log(`Created ${episodesToCreate.length} episodes for ${drama.title}`);
-    }
-
+    await populate();
     console.log('Database Seeding Complete! Enjoy Reel Drama.');
     process.exit(0);
   } catch (error) {
@@ -152,4 +165,8 @@ async function seedDatabase() {
   }
 }
 
-seedDatabase();
+if (require.main === module) {
+  runStandalone();
+}
+
+module.exports = { populate, seedIfEmpty };

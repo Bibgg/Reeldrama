@@ -17,7 +17,20 @@ app.use(morgan('dev'));
 
 // MongoDB Connection
 mongoose.connect(MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB Atlas / Database'))
+  .then(async () => {
+    console.log('Connected to MongoDB Atlas / Database');
+
+    // AUTO_SEED=true हो और डेटाबेस ख़ाली हो, तभी सैंपल ड्रामा भरे जाते हैं
+    if (process.env.AUTO_SEED === 'true') {
+      try {
+        const { seedIfEmpty } = require('./seed/seedData');
+        const seeded = await seedIfEmpty();
+        console.log(seeded ? 'Database was empty: sample dramas added.' : 'Database already has data: seeding skipped.');
+      } catch (seedError) {
+        console.error('Auto-seed failed:', seedError.message);
+      }
+    }
+  })
   .catch((err) => {
     console.error('MongoDB connection error:', err.message);
     console.log('App will continue running with in-memory fallback if database is not reachable.');

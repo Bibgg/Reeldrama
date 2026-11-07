@@ -4,10 +4,19 @@ const Drama = require('../models/Drama');
 const Episode = require('../models/Episode');
 
 // Admin Auth Middleware
+// Key सिर्फ़ header (x-admin-key) से लिया जाता है, URL में नहीं (URL logs में दिख जाता है)।
+// ADMIN_API_KEY सर्वर के environment variables में सेट होना ज़रूरी है, कोड में कोई default नहीं।
 const requireAdmin = (req, res, next) => {
-  const adminKey = req.headers['x-admin-key'] || req.query.adminKey;
-  const configuredKey = process.env.ADMIN_API_KEY || 'reel_drama_secure_admin_2026';
-  
+  const adminKey = req.headers['x-admin-key'];
+  const configuredKey = process.env.ADMIN_API_KEY;
+
+  if (!configuredKey) {
+    return res.status(503).json({
+      success: false,
+      message: 'Admin API is disabled: ADMIN_API_KEY is not configured on the server.'
+    });
+  }
+
   if (!adminKey || adminKey !== configuredKey) {
     return res.status(403).json({
       success: false,

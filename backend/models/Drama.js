@@ -11,6 +11,7 @@ const DramaSchema = new mongoose.Schema(
     slug: {
       type: String,
       unique: true,
+      sparse: true, // बिना slug वाले एक से ज़्यादा ड्रामा बन सकें
       lowercase: true,
       trim: true
     },

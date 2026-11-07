@@ -83,6 +83,32 @@ class ReelPlayerViewModel(
                 _uiState.value = _uiState.value.copy(isBookmarked = isBookmarked)
             }
         }
+        // ऐप खुलते ही सर्वर से असली ड्रामा लाओ
+        refreshFromServer()
+    }
+
+    /** सर्वर से ड्रामा दोबारा लाता है। सर्वर न मिले तो सैंपल डेटा चलता रहता है। */
+    fun refreshFromServer() {
+        viewModelScope.launch {
+            repository.refreshFromServer()
+                .onSuccess { count ->
+                    val drama = repository.getCurrentDrama()
+                    val episode = repository.getCurrentEpisode()
+                    _uiState.value = _uiState.value.copy(
+                        availableDramas = repository.dramas.value,
+                        currentDrama = drama,
+                        currentEpisode = episode,
+                        currentPositionMs = 0L,
+                        isPlaying = true,
+                        isBookmarked = repository.bookmarkedSeriesIds.value.contains(drama.id),
+                        comments = repository.getCommentsForEpisode(episode.id)
+                    )
+                    emitFeedback("Connected: $count series loaded from server")
+                }
+                .onFailure { error ->
+                    emitFeedback("Offline mode: ${error.message ?: "server unreachable"}. Showing sample dramas")
+                }
+        }
     }
 
     fun selectDrama(dramaId: String, startEpisodeIndex: Int = 0) {
@@ -99,6 +125,7 @@ class ReelPlayerViewModel(
             activeSheet = ActiveSheet.NONE
         )
         emitFeedback("Switched to ${drama.title}")
+        viewModelScope.launch { repository.registerView(drama.id) }
     }
 
     fun selectEpisode(index: Int) {
@@ -207,6 +234,7 @@ class ReelPlayerViewModel(
             _uiState.value = _uiState.value.copy(
                 currentEpisode = repository.getCurrentEpisode()
             )
+            viewModelScope.launch { repository.syncLike(episodeId, true) }
         }
     }
 
@@ -218,6 +246,7 @@ class ReelPlayerViewModel(
             currentEpisode = repository.getCurrentEpisode()
         )
         emitFeedback(if (isNowLiked) "Added to Liked Reels" else "Removed Like")
+        viewModelScope.launch { repository.syncLike(episodeId, isNowLiked) }
     }
 
     fun toggleBookmarkCurrentSeries() {
@@ -233,8 +262,8 @@ class ReelPlayerViewModel(
 
     fun updateBackendUrl(newUrl: String) {
         repository.setBackendApiUrl(newUrl)
-        _uiState.value = _uiState.value.copy(backendUrl = newUrl)
-        emitFeedback("Backend API synced to: $newUrl")
+        _uiState.value = _uiState.value.copy(backendUrl = newUrl.trim())
+        refreshFromServer()
     }
 
     private fun emitFeedback(message: String) {

@@ -4,11 +4,36 @@ import com.example.model.Comment
 import com.example.model.DramaSeries
 import com.example.model.Episode
 import com.example.model.SubtitleLine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
 class DramaRepository {
+
+    companion object {
+        // Render पर सर्वर deploy होने के बाद यहाँ अपना URL डालें। अंत में /api ज़रूर रखें।
+        // जैसे: "https://reeldrama-api.onrender.com/api"
+        const val DEFAULT_BACKEND_URL = "https://api.reeldrama.example.com/api"
+    }
+
+    // true तब होता है जब ड्रामा असली सर्वर से आए हों (तभी likes/views सर्वर को भेजे जाते हैं)
+    @Volatile
+    private var loadedFromServer = false
+
+    private var cachedApiUrl: String = ""
+    private var cachedApi: ReelApi? = null
+
+    private fun api(): ReelApi {
+        val url = _backendApiUrl.value
+        val existing = cachedApi
+        if (existing != null && cachedApiUrl == url) return existing
+        return ReelApiFactory.create(url).also {
+            cachedApi = it
+            cachedApiUrl = url
+        }
+    }
 
     // Default fast public streaming CDN & Cloudinary video URLs
     private val videoStreamUrls = listOf(
@@ -34,7 +59,7 @@ class DramaRepository {
     private val _bookmarkedSeriesIds = MutableStateFlow<Set<String>>(setOf("drama_billionaire_bride"))
     val bookmarkedSeriesIds: StateFlow<Set<String>> = _bookmarkedSeriesIds.asStateFlow()
 
-    private val _backendApiUrl = MutableStateFlow<String>("https://api.reeldrama.example.com/api")
+    private val _backendApiUrl = MutableStateFlow<String>(DEFAULT_BACKEND_URL)
     val backendApiUrl: StateFlow<String> = _backendApiUrl.asStateFlow()
 
     fun setCurrentDrama(dramaId: String, startEpisodeIndex: Int = 0) {
@@ -108,6 +133,48 @@ class DramaRepository {
 
     fun setBackendApiUrl(url: String) {
         _backendApiUrl.value = url.trim()
+    }
+
+    /**
+     * सर्वर से ड्रामा + एपिसोड लाकर लिस्ट बदल देता है।
+     * सर्वर न मिले, या वहाँ डेटा खाली हो, तो पुराना (सैंपल) डेटा वैसा ही रहता है और Failure लौटता है।
+     * सफल होने पर कितने ड्रामा आए, वह गिनती लौटाता है।
+     */
+    suspend fun refreshFromServer(): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val base = _backendApiUrl.value
+            require(base.isNotBlank() && !base.contains("example.com")) {
+                "Backend URL not set"
+            }
+            val remote = api().getDramas().data
+                .map { it.toDomain() }
+                .filter { it.episodes.isNotEmpty() }
+            require(remote.isNotEmpty()) { "Server has no dramas yet" }
+
+            loadedFromServer = true
+            _dramas.value = remote
+            _currentDramaId.value = remote.first().id
+            _currentEpisodeIndex.value = 0
+            remote.size
+        }
+    }
+
+    /** Like/Unlike सर्वर पर भेजता है। फेल हो जाए तो चुपचाप छोड़ देता है (ऐप में like फिर भी दिखेगा)। */
+    suspend fun syncLike(episodeId: String, liked: Boolean) {
+        if (!loadedFromServer) return
+        withContext(Dispatchers.IO) {
+            runCatching {
+                api().likeEpisode(episodeId, LikeRequest(if (liked) "like" else "unlike"))
+            }
+        }
+    }
+
+    /** ड्रामा खोलने पर सर्वर में view count +1। */
+    suspend fun registerView(dramaId: String) {
+        if (!loadedFromServer) return
+        withContext(Dispatchers.IO) {
+            runCatching { api().addView(dramaId) }
+        }
     }
 
     fun getCommentsForEpisode(episodeId: String): List<Comment> {
