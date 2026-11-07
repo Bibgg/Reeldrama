@@ -119,4 +119,4 @@ dependencies {
     // KSP Annotation Processors
     "ksp"(libs.androidx.room.compiler)
     "ksp"(libs.moshi.kotlin.codegen)
-}
+  }
