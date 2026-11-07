@@ -89,7 +89,7 @@ interface ReelApi {
 }
 
 object ReelApiFactory {
-    /** baseUrl जैसे: https://my-app.onrender.com/api  (अंत में / हो या न हो, चलेगा) */
+    /** baseUrl जैसे: https://video-server-w5se.onrender.com/api  (अंत में / हो या न हो, चलेगा) */
     fun create(baseUrl: String): ReelApi {
         val normalized = baseUrl.trim().trimEnd('/') + "/"
         // Render का free सर्वर सोया हो तो जागने में ~1 मिनट लगता है, इसलिए लंबा timeout
