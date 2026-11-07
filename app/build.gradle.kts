@@ -139,4 +139,6 @@ implementation("com.google.firebase:firebase-analytics")
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+
+id("com.google.gms.google-services")
 }
