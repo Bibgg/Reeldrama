@@ -1,0 +1,6 @@
+{
+  "name": "ReelDrama",
+  "description": "Vertical short drama streaming app featuring binge-worthy episodic series, full-screen reel player, and seamless episode browsing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
