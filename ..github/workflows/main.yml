@@ -24,6 +24,16 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      # debug.keystore बनाना (build.gradle.kts इसी फ़ाइल को ढूँढता है)
+      - name: Create debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
       # APK File बनाना (Testing के लिए)
       - name: Build Debug APK
         run: gradle assembleDebug
@@ -44,4 +54,3 @@ jobs:
         with:
           name: ReelDrama-AAB
           path: app/build/outputs/bundle/**/*.aab
-          
