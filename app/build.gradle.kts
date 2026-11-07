@@ -60,8 +60,7 @@ android {
     }
 
     googleServices {
-        missingGoogleServicesStrategy= "warn"
-    }
+        GoogleServicesPlugin.MissingGoogleServicesStrate
 }
 
 dependencies {
