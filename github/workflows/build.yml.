@@ -24,16 +24,13 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
-
       # APK File बनाना (Testing के लिए)
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: gradle assembleDebug
 
       # Play Store के लिए AAB File बनाना
       - name: Build Release Bundle (AAB)
-        run: ./gradlew bundleRelease || ./gradlew bundleDebug
+        run: gradle bundleRelease || gradle bundleDebug
 
       # AAB और APK फाइल्स को GitHub पर डाउनलोड के लिए उपलब्ध कराना
       - name: Upload APK Artifact
