@@ -5,10 +5,7 @@ plugins {
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
-id("com.android.application")
-id("com.google.gms.google-services")
-android {
+  alias(libs.plugins.google.services){
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
