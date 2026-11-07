@@ -60,7 +60,7 @@ android {
     }
 
     googleServices {
-     GoogleServicesPlugin.MissingGoogleServicesStrategy.WARN.
+     missingGoogleServicesStrategy ="warn"
 
 }
 
