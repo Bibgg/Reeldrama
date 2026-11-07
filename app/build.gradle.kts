@@ -85,6 +85,7 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 dependencies id implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
+implementation("com.google.firebase:firebase-analytics")
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)
