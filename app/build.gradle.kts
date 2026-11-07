@@ -7,7 +7,7 @@ plugins {
   alias(libs.plugins.secrets)
   alias(libs.plugins.google.services){
   namespace = "com.example"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  compileSdk { version = release(36) { minorApiLevel = 1 } 
 
   defaultConfig {
     applicationId = "com.aistudio.reeldrama.zqkmv"
