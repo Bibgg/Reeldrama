@@ -60,7 +60,7 @@ android {
     }
 
     googleServices {
-        missingGoogleServicesStrategy = "warn"
+        missingGoogleServicesStrategy.set= "warn"
     }
 }
 
