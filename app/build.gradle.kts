@@ -1,5 +1,7 @@
 plugins {
     id("com.android.application")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")
     id("com.google.gms.google-services")
 }
 
@@ -58,17 +60,16 @@ android {
         includeInApk = false
         includeInBundle = true
     }
+}
 
-    googleServices {
-     missingGoogleServicesStrategy ="warn"
-
+googleServices {
+    missingGoogleServicesStrategy = "warn"
 }
 
 dependencies {
-    // Firebase Setup
-    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
-    implementation("com.google.firebase:firebase-analytics")
+    // Firebase
     implementation(platform(libs.firebase.bom))
+    implementation("com.google.firebase:firebase-analytics")
     implementation(libs.firebase.ai)
     implementation(libs.firebase.appcheck.recaptcha)
     implementation(libs.firebase.appcheck.debug)
@@ -89,7 +90,7 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.runtime)
 
-    // Third-party Libraries
+    // Third-party
     implementation(libs.coil.compose)
     implementation(libs.converter.moshi)
     implementation(libs.kotlinx.coroutines.android)
@@ -116,6 +117,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
-    // KSP Annotation Processors
-    "ksp"(libs.androidx.room.compiler)
-    "ksp"(libs.moshi.kotlin.codegen)
+    // KSP
+    ksp(libs.androidx.room.compiler)
+    ksp(libs.moshi.kotlin.codegen)
+}
