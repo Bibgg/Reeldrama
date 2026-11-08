@@ -1,5 +1,5 @@
 // Reel Drama Mobile Streaming Web App & PWA
-const API_BASE = '/api';
+const API_BASE = 'https://reeldrama-api.onrender.com/api';
 
 const DEFAULT_DRAMAS = [
   {
