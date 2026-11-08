@@ -151,13 +151,17 @@ async function seedIfEmpty() {
 // `npm run seed` से सीधे चलाने पर (पुराना व्यवहार: सब मिटाकर नया भरता है)
 async function runStandalone() {
   dotenv.config({ path: '../.env' });
-  const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/reeldrama';
+  const MONGODB_URI = process.env.MONGODB_URI;
+  if (!MONGODB_URI) {
+    console.error('MONGODB_URI is required. Set it in the environment before seeding.');
+    process.exit(1);
+  }
   try {
     console.log('Connecting to MongoDB...');
     await mongoose.connect(MONGODB_URI);
     console.log('MongoDB Connected successfully!');
-    await populate();
-    console.log('Database Seeding Complete! Enjoy Reel Drama.');
+    const seeded = await seedIfEmpty();
+    console.log(seeded ? 'Sample data added to the empty database.' : 'Database already contains dramas; no data was deleted or changed.');
     process.exit(0);
   } catch (error) {
     console.error('Seeding Error:', error);
