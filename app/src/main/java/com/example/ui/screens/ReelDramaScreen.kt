@@ -15,6 +15,18 @@ import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.RubyRed
+import com.example.ui.theme.TextSecondary
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -60,6 +72,7 @@ fun ReelDramaScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Home, 1 = Reels
 
     val episodes = uiState.currentDrama.episodes
     val pagerState = rememberPagerState(
@@ -91,8 +104,12 @@ fun ReelDramaScreen(
         }
     }
 
-    BackHandler(enabled = uiState.activeSheet != ActiveSheet.NONE) {
-        viewModel.setActiveSheet(ActiveSheet.NONE)
+    BackHandler(enabled = uiState.activeSheet != ActiveSheet.NONE || selectedTab != 0) {
+        if (uiState.activeSheet != ActiveSheet.NONE) {
+            viewModel.setActiveSheet(ActiveSheet.NONE)
+        } else {
+            selectedTab = 0
+        }
     }
 
     Box(
@@ -101,6 +118,16 @@ fun ReelDramaScreen(
             .background(OnyxBlack)
             .testTag("reel_drama_main_screen")
     ) {
+        if (selectedTab == 0) {
+            ReelDramaHomeScreen(
+                dramas = uiState.availableDramas,
+                onPlayDrama = { dramaId ->
+                    viewModel.selectDrama(dramaId, 0)
+                    selectedTab = 1
+                },
+                onBrowseAll = { viewModel.setActiveSheet(ActiveSheet.SERIES_BROWSER) }
+            )
+        } else {
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -189,6 +216,32 @@ fun ReelDramaScreen(
                 modifier = Modifier
                     .background(Color(0xFFB45CFF), RoundedCornerShape(6.dp))
                     .padding(horizontal = 7.dp, vertical = 3.dp)
+            )
+        }
+
+        }
+
+        NavigationBar(
+            containerColor = DarkSurface,
+            contentColor = Color.White
+        ) {
+            NavigationBarItem(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+                label = { Text("Home") }
+            )
+            NavigationBarItem(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Reels") },
+                label = { Text("Reels") }
+            )
+            NavigationBarItem(
+                selected = uiState.activeSheet == ActiveSheet.SERIES_BROWSER,
+                onClick = { viewModel.setActiveSheet(ActiveSheet.SERIES_BROWSER) },
+                icon = { Icon(Icons.Default.Bookmark, contentDescription = "Series") },
+                label = { Text("Series") }
             )
         }
 
