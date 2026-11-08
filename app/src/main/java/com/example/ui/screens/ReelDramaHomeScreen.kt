@@ -25,6 +25,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +84,19 @@ fun ReelDramaHomeScreen(
                                 )
                             )
                     ) {
+                        if (featured.coverImageUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = featured.coverImageUrl,
+                                contentDescription = "${featured.title} poster",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxWidth().height(360.dp)
+                            )
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(360.dp).background(
+                                    Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.08f), Color.Black.copy(alpha = 0.88f)))
+                                )
+                            )
+                        }
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -208,9 +223,18 @@ private fun DramaSection(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(drama.title.take(1).uppercase(), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Black)
-                            Text("REELDRAMA", color = Color.White.copy(alpha = 0.6f), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                        if (drama.coverImageUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = drama.coverImageUrl,
+                                contentDescription = "${drama.title} poster",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxWidth().height(190.dp)
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(drama.title.take(1).uppercase(), color = Color.White, fontSize = 42.sp, fontWeight = FontWeight.Black)
+                                Text("REELDRAMA", color = Color.White.copy(alpha = 0.6f), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                         if (drama.isTrending) {
                             Text(
