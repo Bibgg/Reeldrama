@@ -149,8 +149,8 @@ fun ReelDramaHomeScreen(
 
         item {
             DramaSection(
-                title = "Continue Watching",
-                subtitle = "Pick up where the drama gets intense",
+                title = "More to Explore",
+                subtitle = "Discover your next favorite drama",
                 dramas = dramas,
                 onPlayDrama = onPlayDrama
             )
