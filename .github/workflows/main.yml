@@ -36,7 +36,20 @@ jobs:
 
       # APK File बनाना (Testing के लिए)
       - name: Build Debug APK
-        run: gradle assembleDebug
+        # Avoid the Kotlin/Gradle configuration-cache serialization issue.
+        # Retry transient Maven/GitHub 5xx download failures before marking the build failed.
+        run: |
+          for attempt in 1 2 3; do
+            echo "Debug APK build attempt $attempt of 3"
+            if gradle --no-configuration-cache assembleDebug; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Build failed; waiting 20 seconds before retry..."
+              sleep 20
+            fi
+          done
+          exit 1
 
       # Play Store के लिए AAB File बनाना
       - name: Build Release Bundle (AAB)
