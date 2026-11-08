@@ -66,6 +66,7 @@ fun VideoSurfacePlayer(
     playbackSpeed: Float,
     onProgressUpdate: (positionMs: Long, durationMs: Long) -> Unit,
     onTogglePlayPause: () -> Unit,
+    onSingleTap: () -> Unit = onTogglePlayPause,
     onDoubleTapHeart: (x: Float, y: Float) -> Unit,
     onVideoCompleted: () -> Unit,
     modifier: Modifier = Modifier
@@ -203,12 +204,7 @@ fun VideoSurfacePlayer(
             .pointerInput(videoUrl) {
                 detectTapGestures(
                     onTap = {
-                        showPlayPauseFlash = true
-                        onTogglePlayPause()
-                        coroutineScope.launch {
-                            delay(600)
-                            showPlayPauseFlash = false
-                        }
+                        onSingleTap()
                     },
                     onDoubleTap = { offset ->
                         val heart = FloatingHeart(
@@ -296,9 +292,9 @@ fun VideoSurfacePlayer(
             }
         }
 
-        // Tap to play/pause icon animation
+        // Pause indicator stays visible while paused; single tap is reserved for showing/hiding controls.
         AnimatedVisibility(
-            visible = showPlayPauseFlash || (!isPlaying && isReady),
+            visible = !isPlaying && isReady,
             enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.Center)
