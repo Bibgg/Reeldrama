@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +52,31 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+/**
+ * Guarantees that only one MediaPlayer in the reels pager can produce audio/video.
+ * Adjacent pager pages may be composed at the same time, so each player must claim
+ * playback ownership before starting.
+ */
+private object ReelPlaybackCoordinator {
+    private var activePlayer: MediaPlayer? = null
+
+    @Synchronized
+    fun claim(player: MediaPlayer) {
+        val previous = activePlayer
+        if (previous !== player) {
+            try {
+                if (previous?.isPlaying == true) previous.pause()
+            } catch (_: Exception) {}
+            activePlayer = player
+        }
+    }
+
+    @Synchronized
+    fun release(player: MediaPlayer) {
+        if (activePlayer === player) activePlayer = null
+    }
+}
 
 data class FloatingHeart(
     val id: Long,
@@ -73,6 +99,10 @@ fun VideoSurfacePlayer(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    // Read the latest page state inside asynchronous MediaPlayer callbacks.
+    val latestIsPlaying = rememberUpdatedState(isPlaying)
+    val latestIsMuted = rememberUpdatedState(isMuted)
+    val latestPlaybackSpeed = rememberUpdatedState(playbackSpeed)
 
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isBuffering by remember { mutableStateOf(true) }
@@ -107,9 +137,11 @@ fun VideoSurfacePlayer(
         if (player != null && isReady) {
             try {
                 if (isPlaying) {
+                    ReelPlaybackCoordinator.claim(player)
                     if (!player.isPlaying) player.start()
                 } else {
                     if (player.isPlaying) player.pause()
+                    ReelPlaybackCoordinator.release(player)
                 }
             } catch (_: Exception) {}
         }
@@ -148,17 +180,21 @@ fun VideoSurfacePlayer(
                 isBuffering = false
                 isReady = true
                 surfaceRef?.let { mp.setSurface(it) }
-                val vol = if (isMuted) 0f else 1f
+                val vol = if (latestIsMuted.value) 0f else 1f
                 mp.setVolume(vol, vol)
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                     try {
                         val p = mp.playbackParams
-                        p.speed = playbackSpeed
+                        p.speed = latestPlaybackSpeed.value
                         mp.playbackParams = p
                     } catch (_: Exception) {}
                 }
-                if (isPlaying) {
+                // A page may have stopped being current while prepareAsync was running.
+                if (latestIsPlaying.value) {
+                    ReelPlaybackCoordinator.claim(mp)
                     mp.start()
+                } else {
+                    try { mp.pause() } catch (_: Exception) {}
                 }
             }
             setOnBufferingUpdateListener { _, percent ->
@@ -187,6 +223,7 @@ fun VideoSurfacePlayer(
         mediaPlayer = player
 
         onDispose {
+            ReelPlaybackCoordinator.release(player)
             try {
                 if (player.isPlaying) player.stop()
                 player.reset()
