@@ -179,6 +179,36 @@ router.post('/admin/dramas', requireAdmin, async (req, res) => {
   }
 });
 
+// @route   PATCH /api/admin/episodes/:id
+// @desc    Replace an existing episode's video URL without creating a duplicate episode
+router.patch('/admin/episodes/:id', requireAdmin, async (req, res) => {
+  try {
+    const { videoUrl, durationSec } = req.body;
+    if (!videoUrl || typeof videoUrl !== 'string' || !/^https:\/\//i.test(videoUrl)) {
+      return res.status(400).json({ success: false, message: 'A valid HTTPS videoUrl is required.' });
+    }
+
+    const update = { videoUrl };
+    if (Number.isFinite(Number(durationSec)) && Number(durationSec) > 0) {
+      update.durationSec = Number(durationSec);
+    }
+
+    const episode = await Episode.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, runValidators: true }
+    );
+
+    if (!episode) {
+      return res.status(404).json({ success: false, message: 'Episode not found' });
+    }
+
+    res.json({ success: true, message: 'Episode video updated.', data: episode });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
 // @route   POST /api/admin/episodes
 // @desc    Add episode with Cloudinary video URL
 router.post('/admin/episodes', requireAdmin, async (req, res) => {
