@@ -12,6 +12,7 @@ data class DramaSeries(
     val director: String = "Zhang Wei",
     val cast: List<String> = listOf("Alexander Vance", "Selena Moore", "Dominic Reed"),
     val posterColorHex: Long = 0xFF7A1426,
+    val coverImageUrl: String = "",
     val isTrending: Boolean = true,
     val episodes: List<Episode>
 )
