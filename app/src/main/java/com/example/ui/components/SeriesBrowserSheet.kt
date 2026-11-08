@@ -33,6 +33,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -217,7 +219,14 @@ private fun DramaSeriesCard(
                     .background(Color(drama.posterColorHex)),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
+                if (drama.coverImageUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = drama.coverImageUrl,
+                        contentDescription = "${drama.title} poster",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().fillMaxHeight()
+                    )
+                } else Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
