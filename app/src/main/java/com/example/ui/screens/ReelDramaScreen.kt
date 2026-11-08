@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -31,6 +33,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,6 +42,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +82,33 @@ fun ReelDramaScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedTab by remember { mutableStateOf(0) } // 0 = Home, 1 = Reels
+    var isControlsVisible by remember { mutableStateOf(true) }
+    val rootView = LocalView.current
+    val activityWindow = (context as? Activity)?.window
+
+    // Hide Android status/navigation bars while watching reels; restore them on Home.
+    DisposableEffect(selectedTab, activityWindow, rootView) {
+        val controller = activityWindow?.let { WindowInsetsControllerCompat(it, rootView) }
+        if (selectedTab == 1) {
+            controller?.hide(WindowInsetsCompat.Type.systemBars())
+            controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            controller?.show(WindowInsetsCompat.Type.systemBars())
+        }
+        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
+    }
+
+    LaunchedEffect(selectedTab, uiState.isPlaying, pagerState.currentPage) {
+        if (selectedTab == 1) {
+            if (!uiState.isPlaying) {
+                isControlsVisible = true
+            } else {
+                isControlsVisible = true
+                kotlinx.coroutines.delay(3000L)
+                isControlsVisible = false
+            }
+        }
+    }
 
     val episodes = uiState.currentDrama.episodes
     val pagerState = rememberPagerState(
@@ -148,6 +184,9 @@ fun ReelDramaScreen(
                     onTogglePlayPause = {
                         if (isCurrentPage) viewModel.togglePlayPause()
                     },
+                    onSingleTap = {
+                        if (isCurrentPage) isControlsVisible = !isControlsVisible
+                    },
                     onDoubleTapHeart = { x, y ->
                         if (isCurrentPage) viewModel.onDoubleTapLike(x, y)
                     },
@@ -157,6 +196,11 @@ fun ReelDramaScreen(
                 )
 
                 if (isCurrentPage) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isControlsVisible,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut()
+                    ) {
                     ReelOverlayControls(
                         drama = uiState.currentDrama,
                         episode = pageEpisode,
@@ -189,15 +233,40 @@ fun ReelDramaScreen(
                             context.startActivity(Intent.createChooser(shareIntent, "Share Episode"))
                         }
                     )
+                    }
+
+                    // Large center play/pause control, visible with the other controls.
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isControlsVisible,
+                        enter = androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.fadeOut(),
+                        modifier = Modifier.align(Alignment.Center)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.58f))
+                                .clickable { viewModel.togglePlayPause() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                contentDescription = if (uiState.isPlaying) "Pause video" else "Play video",
+                                tint = Color.White,
+                                modifier = Modifier.size(38.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
 
         // Tube-style title badge from the supplied design, adapted for ReelDrama.
-        Row(
+        if (selectedTab == 1 && isControlsVisible) Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 42.dp)
+                .padding(start = 16.dp, top = 16.dp)
                 .testTag("reeldrama_reels_header"),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -221,7 +290,7 @@ fun ReelDramaScreen(
 
         }
 
-        NavigationBar(
+        if (selectedTab == 0) NavigationBar(
             modifier = Modifier.align(Alignment.BottomCenter),
             containerColor = DarkSurface,
             contentColor = Color.White
