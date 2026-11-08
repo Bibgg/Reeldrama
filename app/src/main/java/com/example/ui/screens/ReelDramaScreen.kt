@@ -222,6 +222,7 @@ fun ReelDramaScreen(
         }
 
         NavigationBar(
+            modifier = Modifier.align(Alignment.BottomCenter),
             containerColor = DarkSurface,
             contentColor = Color.White
         ) {
