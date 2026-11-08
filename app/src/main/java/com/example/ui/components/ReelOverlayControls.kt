@@ -7,6 +7,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -236,12 +238,21 @@ fun ReelOverlayControls(
                         .clickable { onOpenSeriesBrowser() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = drama.title.take(2).uppercase(),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
-                        fontSize = 16.sp
-                    )
+                    if (drama.coverImageUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = drama.coverImageUrl,
+                            contentDescription = "${drama.title} poster",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = drama.title.take(2).uppercase(),
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            fontSize = 16.sp
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
