@@ -5,26 +5,33 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.viewmodel.ActiveSheet
 import com.example.ui.components.BackendConfigDialog
@@ -36,8 +43,15 @@ import com.example.ui.components.VideoSurfacePlayer
 import com.example.ui.theme.OnyxBlack
 import com.example.viewmodel.ReelPlayerViewModel
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
+/**
+ * ReelDrama's native Tube/Reels-style main screen.
+ *
+ * The supplied TubeScreen sample used FeedPost/PostFormat and OmniInlineVideoPlayer,
+ * which are not part of this repository. This version adapts its vertical-reel
+ * experience to the app's existing Drama/Episode models and VideoSurfacePlayer,
+ * preserving backend loading, episode navigation, likes, comments and bookmarks.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReelDramaScreen(
@@ -45,17 +59,14 @@ fun ReelDramaScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Sync Pager state with current episode index
     val episodes = uiState.currentDrama.episodes
     val pagerState = rememberPagerState(
         initialPage = 0,
-        pageCount = { episodes.size }
+        pageCount = { episodes.size.coerceAtLeast(1) }
     )
 
-    // Listen to ViewModel user messages
     LaunchedEffect(viewModel) {
         viewModel.userFeedbackMessage.collectLatest { msg ->
             snackbarHostState.showSnackbar(
@@ -65,26 +76,21 @@ fun ReelDramaScreen(
         }
     }
 
-    // When episode changes from outside (e.g. from Episode drawer), scroll pager
-    LaunchedEffect(uiState.currentEpisode.id) {
+    LaunchedEffect(uiState.currentEpisode.id, episodes.size) {
         val targetIndex = episodes.indexOfFirst { it.id == uiState.currentEpisode.id }
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
             pagerState.animateScrollToPage(targetIndex)
         }
     }
 
-    // When user swipes pager up/down, update ViewModel's selected episode
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { pageIndex ->
-            // selectEpisode खुद जाँच लेता है कि index सही है या नहीं।
-            // यहाँ पुरानी `episodes` लिस्ट इस्तेमाल करने से सर्वर वाले लंबे ड्रामा में swipe रुक जाता था।
-            if (pageIndex >= 0) {
+            if (pageIndex >= 0 && pageIndex < episodes.size) {
                 viewModel.selectEpisode(pageIndex)
             }
         }
     }
 
-    // Android back handler
     BackHandler(enabled = uiState.activeSheet != ActiveSheet.NONE) {
         viewModel.setActiveSheet(ActiveSheet.NONE)
     }
@@ -95,7 +101,6 @@ fun ReelDramaScreen(
             .background(OnyxBlack)
             .testTag("reel_drama_main_screen")
     ) {
-        // Vertical Pager for full-screen Reels
         VerticalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -105,35 +110,25 @@ fun ReelDramaScreen(
             val isCurrentPage = page == pagerState.currentPage
 
             Box(modifier = Modifier.fillMaxSize()) {
-                // Video Player
                 VideoSurfacePlayer(
                     videoUrl = pageEpisode.videoUrl,
                     isPlaying = isCurrentPage && uiState.isPlaying,
                     isMuted = uiState.isMuted,
                     playbackSpeed = uiState.playbackSpeed,
                     onProgressUpdate = { pos, dur ->
-                        if (isCurrentPage) {
-                            viewModel.updatePlaybackProgress(pos, dur)
-                        }
+                        if (isCurrentPage) viewModel.updatePlaybackProgress(pos, dur)
                     },
                     onTogglePlayPause = {
-                        if (isCurrentPage) {
-                            viewModel.togglePlayPause()
-                        }
+                        if (isCurrentPage) viewModel.togglePlayPause()
                     },
                     onDoubleTapHeart = { x, y ->
-                        if (isCurrentPage) {
-                            viewModel.onDoubleTapLike(x, y)
-                        }
+                        if (isCurrentPage) viewModel.onDoubleTapLike(x, y)
                     },
                     onVideoCompleted = {
-                        if (isCurrentPage) {
-                            viewModel.nextEpisode()
-                        }
+                        if (isCurrentPage) viewModel.nextEpisode()
                     }
                 )
 
-                // Overlay Controls (only active on current visible page)
                 if (isCurrentPage) {
                     ReelOverlayControls(
                         drama = uiState.currentDrama,
@@ -171,15 +166,38 @@ fun ReelDramaScreen(
             }
         }
 
-        // Active Bottom Sheets & Dialogs
+        // Tube-style title badge from the supplied design, adapted for ReelDrama.
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 42.dp)
+                .testTag("reeldrama_reels_header"),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "ReelDrama",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "REELS",
+                color = Color.Black,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier
+                    .background(Color(0xFFB45CFF), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            )
+        }
+
         when (uiState.activeSheet) {
             ActiveSheet.EPISODES -> {
                 EpisodesBottomSheet(
                     drama = uiState.currentDrama,
                     currentEpisodeIndex = pagerState.currentPage,
-                    onEpisodeSelected = { index ->
-                        viewModel.selectEpisode(index)
-                    },
+                    onEpisodeSelected = { index -> viewModel.selectEpisode(index) },
                     onDismiss = { viewModel.setActiveSheet(ActiveSheet.NONE) }
                 )
             }
@@ -187,9 +205,7 @@ fun ReelDramaScreen(
                 SeriesBrowserSheet(
                     dramas = uiState.availableDramas,
                     currentDramaId = uiState.currentDrama.id,
-                    onSelectDrama = { dramaId ->
-                        viewModel.selectDrama(dramaId, 0)
-                    },
+                    onSelectDrama = { dramaId -> viewModel.selectDrama(dramaId, 0) },
                     onDismiss = { viewModel.setActiveSheet(ActiveSheet.NONE) }
                 )
             }
@@ -203,16 +219,13 @@ fun ReelDramaScreen(
             ActiveSheet.BACKEND_CONFIG -> {
                 BackendConfigDialog(
                     currentUrl = uiState.backendUrl,
-                    onSaveUrl = { newUrl ->
-                        viewModel.updateBackendUrl(newUrl)
-                    },
+                    onSaveUrl = { newUrl -> viewModel.updateBackendUrl(newUrl) },
                     onDismiss = { viewModel.setActiveSheet(ActiveSheet.NONE) }
                 )
             }
-            ActiveSheet.NONE, ActiveSheet.DRAMA_INFO -> {}
+            ActiveSheet.NONE, ActiveSheet.DRAMA_INFO -> Unit
         }
 
-        // Snackbar Host for feedback
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
