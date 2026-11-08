@@ -98,23 +98,20 @@ fun ReelDramaScreen(
         onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
     }
 
-    LaunchedEffect(selectedTab, uiState.isPlaying, pagerState.currentPage) {
-        if (selectedTab == 1) {
-            if (!uiState.isPlaying) {
-                isControlsVisible = true
-            } else {
-                isControlsVisible = true
-                kotlinx.coroutines.delay(3000L)
-                isControlsVisible = false
-            }
-        }
-    }
-
     val episodes = uiState.currentDrama.episodes
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { episodes.size.coerceAtLeast(1) }
     )
+
+    LaunchedEffect(selectedTab, uiState.isPlaying, pagerState.currentPage, isControlsVisible) {
+        if (selectedTab == 1 && uiState.isPlaying && isControlsVisible) {
+            kotlinx.coroutines.delay(3000L)
+            isControlsVisible = false
+        } else if (selectedTab == 1 && !uiState.isPlaying) {
+            isControlsVisible = true
+        }
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.userFeedbackMessage.collectLatest { msg ->
