@@ -15,7 +15,7 @@ class DramaRepository {
     companion object {
         // Render पर सर्वर deploy होने के बाद यहाँ अपना URL डालें। अंत में /api ज़रूर रखें।
         // जैसे: "https://reeldrama-api.onrender.com/api"
-        const val DEFAULT_BACKEND_URL = "https://api.reeldrama.example.com/api"
+        const val DEFAULT_BACKEND_URL = "https://reeldrama-api.onrender.com/api"
     }
 
     // true तब होता है जब ड्रामा असली सर्वर से आए हों (तभी likes/views सर्वर को भेजे जाते हैं)
