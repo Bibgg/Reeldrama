@@ -50,6 +50,7 @@ data class DramaDto(
     val rating: Double = 0.0,
     val viewsCount: Long = 0L,
     val posterColorHex: String = "#7A1426",
+    val coverImageUrl: String = "",
     val isTrending: Boolean = false,
     val episodes: List<EpisodeDto> = emptyList()
 )
@@ -150,6 +151,7 @@ fun DramaDto.toDomain(): DramaSeries {
         rating = rating.toFloat(),
         viewsCountFormatted = formatCount(viewsCount),
         posterColorHex = parseColor(posterColorHex),
+        coverImageUrl = coverImageUrl,
         isTrending = isTrending,
         episodes = eps
     )
