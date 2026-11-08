@@ -2,6 +2,17 @@ const express = require('express');
 const router = express.Router();
 const Drama = require('../models/Drama');
 const Episode = require('../models/Episode');
+const multer = require('multer');
+const { cloudinary, configured: cloudinaryConfigured } = require('../config/cloudinary');
+
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('video/')) return cb(new Error('Only video files are allowed.'));
+    cb(null, true);
+  }
+});
 
 // Admin Auth Middleware
 // Key सिर्फ़ header (x-admin-key) से लिया जाता है, URL में नहीं (URL logs में दिख जाता है)।
@@ -128,6 +139,34 @@ router.post('/dramas/:id/view', async (req, res) => {
 // -------------------------------------------------------------
 // ADMIN-ONLY CONTENT MANAGEMENT (Strictly Admin Uploads)
 // -------------------------------------------------------------
+
+// @route POST /api/admin/upload-video
+// Upload a video to Cloudinary. Send multipart/form-data with field name "video".
+router.post('/admin/upload-video', requireAdmin, (req, res) => {
+  if (!cloudinaryConfigured) {
+    return res.status(503).json({ success: false, message: 'Cloudinary environment variables are not configured on Render.' });
+  }
+
+  videoUpload.single('video')(req, res, (uploadError) => {
+    if (uploadError) return res.status(400).json({ success: false, message: uploadError.message });
+    if (!req.file) return res.status(400).json({ success: false, message: 'Attach a video file in the "video" field.' });
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { resource_type: 'video', folder: 'reeldrama/episodes' },
+      (error, result) => {
+        if (error) return res.status(502).json({ success: false, message: error.message });
+        return res.status(201).json({
+          success: true,
+          videoUrl: result.secure_url,
+          publicId: result.public_id,
+          durationSec: result.duration || null,
+          bytes: result.bytes
+        });
+      }
+    );
+    uploadStream.end(req.file.buffer);
+  });
+});
 
 // @route   POST /api/admin/dramas
 // @desc    Create new drama series
