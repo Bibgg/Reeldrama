@@ -134,8 +134,18 @@ async function init() {
     if (res.ok) {
       const json = await res.json();
       if (json.data && json.data.length > 0) {
-        dramas = json.data;
-        currentDrama = dramas[0];
+        dramas = json.data.map(drama => ({
+          ...drama,
+          posterColor: drama.posterColorHex || '#8A1325',
+          viewsFormatted: formatCount(drama.viewsCount || 0),
+          episodes: (drama.episodes || []).map(episode => ({
+            ...episode,
+            likes: episode.likesCount || 0,
+            comments: 0,
+            shares: episode.sharesCount || 0
+          }))
+        })).filter(drama => drama.episodes.length > 0);
+        if (dramas.length > 0) currentDrama = dramas[0];
       }
     }
   } catch (err) {
