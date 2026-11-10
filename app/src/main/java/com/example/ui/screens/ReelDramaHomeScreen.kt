@@ -28,6 +28,10 @@ import androidx.compose.material3.Text
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.DramaSeries
+import com.example.ui.components.VideoSurfacePlayer
 import com.example.ui.theme.OnyxBlack
 import com.example.ui.theme.RubyRed
 import com.example.ui.theme.TextSecondary
@@ -49,6 +54,8 @@ fun ReelDramaHomeScreen(
     onBrowseAll: () -> Unit
 ) {
     val featured = dramas.firstOrNull { it.isTrending } ?: dramas.firstOrNull()
+    val previewEpisode = featured?.episodes?.firstOrNull()
+    var previewIsPlaying by remember(previewEpisode?.videoUrl) { mutableStateOf(true) }
 
     LazyColumn(
         modifier = Modifier
@@ -67,6 +74,56 @@ fun ReelDramaHomeScreen(
                 Text("DRAMA", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.weight(1f))
                 Text("Discover", color = TextSecondary, fontSize = 13.sp)
+            }
+        }
+
+        if (featured != null && previewEpisode != null) {
+            item {
+                Column(Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        "PLAYING NOW  •  EPISODE 1",
+                        color = RubyRed,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 9.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(230.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                    ) {
+                        VideoSurfacePlayer(
+                            videoUrl = previewEpisode.videoUrl,
+                            isPlaying = previewIsPlaying,
+                            isMuted = true,
+                            playbackSpeed = 1f,
+                            onProgressUpdate = { _, _ -> },
+                            onTogglePlayPause = { previewIsPlaying = !previewIsPlaying },
+                            onSingleTap = { previewIsPlaying = !previewIsPlaying },
+                            onDoubleTapHeart = { _, _ -> },
+                            onVideoCompleted = { previewIsPlaying = false },
+                            modifier = Modifier.fillMaxWidth().height(230.dp)
+                        )
+                    }
+                    Text(
+                        featured.title + "  •  " + previewEpisode.title,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 9.dp, start = 3.dp)
+                    )
+                    Button(
+                        onClick = { onPlayDrama(featured.id) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RubyRed),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Watch full episode", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
 
