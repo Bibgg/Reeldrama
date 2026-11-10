@@ -148,13 +148,17 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
 // @desc    Get all drama series with optional genre filter
 router.get('/dramas', async (req, res) => {
   try {
-    const { genre, trending } = req.query;
+    const { genre, trending, sort } = req.query;
     const filter = {};
     if (genre && genre !== 'All') filter.genre = genre;
     if (trending === 'true') filter.isTrending = true;
+    // Latest is the default catalogue order; trending remains a separate section.
+    const sortOrder = sort === 'popular'
+      ? { viewsCount: -1, createdAt: -1 }
+      : { createdAt: -1, _id: -1 };
 
     const dramas = await Drama.find(filter)
-      .sort({ isTrending: -1, viewsCount: -1 })
+      .sort(sortOrder)
       .populate({
         path: 'episodes',
         select: 'episodeNumber title videoUrl durationSec likesCount introHook subtitles',
