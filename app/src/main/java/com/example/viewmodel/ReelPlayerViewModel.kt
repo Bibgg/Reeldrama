@@ -118,13 +118,13 @@ class ReelPlayerViewModel(
             currentDrama = drama,
             currentEpisode = episode,
             currentPositionMs = 0L,
-            isPlaying = true,
+            isPlaying = episode.videoUrl.isNotBlank(),
             isBookmarked = repository.bookmarkedSeriesIds.value.contains(drama.id),
             comments = repository.getCommentsForEpisode(episode.id),
             activeSheet = ActiveSheet.NONE
         )
         emitFeedback("Switched to ${drama.title}")
-        viewModelScope.launch { repository.registerView(drama.id) }
+        if (drama.id != "no_content") viewModelScope.launch { repository.registerView(drama.id) }
     }
 
     fun selectEpisode(index: Int) {
@@ -135,7 +135,7 @@ class ReelPlayerViewModel(
             _uiState.value = _uiState.value.copy(
                 currentEpisode = episode,
                 currentPositionMs = 0L,
-                isPlaying = true,
+                isPlaying = episode.videoUrl.isNotBlank(),
                 comments = repository.getCommentsForEpisode(episode.id),
                 activeSheet = ActiveSheet.NONE
             )
