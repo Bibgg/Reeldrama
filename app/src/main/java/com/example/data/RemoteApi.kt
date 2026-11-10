@@ -79,7 +79,7 @@ data class ViewResponse(
 
 
 @JsonClass(generateAdapter = true)
-data class ShortMaxPopularResponse(val success: Boolean = false, val data: ShortMaxPopularPayload? = null)
+data class ShortMaxPopularResponse(val success: Boolean = false, val data: Any? = null)
 
 @JsonClass(generateAdapter = true)
 data class ShortMaxPopularPayload(val data: List<ShortMaxDramaDto> = emptyList())
@@ -92,7 +92,7 @@ data class ShortMaxDramaDto(
 )
 
 @JsonClass(generateAdapter = true)
-data class ShortMaxEpisodesResponse(val success: Boolean = false, val data: ShortMaxEpisodesPayload? = null)
+data class ShortMaxEpisodesResponse(val success: Boolean = false, val data: Any? = null)
 
 @JsonClass(generateAdapter = true)
 data class ShortMaxEpisodesPayload(val data: ShortMaxEpisodesData? = null)
