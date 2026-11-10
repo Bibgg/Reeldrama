@@ -145,9 +145,9 @@ class DramaRepository {
                 .filter { it.episodes.isNotEmpty() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
-                api().getShortMaxPopular(lang = "id", page = 1).data.take(12).mapNotNull { item ->
+                api().getShortMaxPopular(lang = "id", page = 1).data?.data.orEmpty().take(12).mapNotNull { item ->
                     val code = item.code.ifBlank { return@mapNotNull null }
-                    val eps = api().getShortMaxEpisodes(code).data?.episodes.orEmpty().mapNotNull { ep ->
+                    val eps = api().getShortMaxEpisodes(code).data?.data?.episodes.orEmpty().mapNotNull { ep ->
                         val videoUrl = ep.video?.video1080?.takeIf { it.startsWith("https://") }
                             ?: ep.video?.video720?.takeIf { it.startsWith("https://") }
                             ?: ep.video?.video480?.takeIf { it.startsWith("https://") }
