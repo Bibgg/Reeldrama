@@ -141,6 +141,71 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// APISHORT / DRAMABOX API (read-only catalog metadata)
+// Requires APISHORT_API_KEY in Render environment variables.
+// -------------------------------------------------------------
+router.get('/catalog/dramabox/languages', async (req, res) => {
+  const apiKey = process.env.APISHORT_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      message: 'APIShort is not configured. Add APISHORT_API_KEY to Render Environment Variables.'
+    });
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const upstream = await fetch('https://apishort.com/v1/dramabox/api/dramabox/languages', {
+      method: 'GET',
+      headers: {
+        'x-token': apiKey,
+        Accept: 'application/json'
+      },
+      signal: controller.signal
+    });
+
+    const bodyText = await upstream.text();
+    let payload;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch {
+      payload = { raw: bodyText.slice(0, 2000) };
+    }
+
+    if (!upstream.ok) {
+      return res.status(upstream.status === 429 ? 429 : 502).json({
+        success: false,
+        provider: 'APIShort',
+        upstreamStatus: upstream.status,
+        message: upstream.status === 401 || upstream.status === 403
+          ? 'APIShort rejected the key. Check APISHORT_API_KEY in Render.'
+          : upstream.status === 429
+            ? 'APIShort rate limit reached.'
+            : 'APIShort languages request failed.',
+        details: payload
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider: 'APIShort',
+      platform: 'DramaBox',
+      data: payload
+    });
+  } catch (error) {
+    const timedOut = error.name === 'AbortError';
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      provider: 'APIShort',
+      message: timedOut ? 'APIShort request timed out.' : 'Could not reach APIShort.'
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+// -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
 
