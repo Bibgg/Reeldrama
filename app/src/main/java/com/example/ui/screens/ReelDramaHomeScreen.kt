@@ -25,6 +25,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.FilterChip
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.Composable
@@ -53,8 +56,20 @@ fun ReelDramaHomeScreen(
     onPlayDrama: (String) -> Unit,
     onBrowseAll: () -> Unit
 ) {
-    val featured = dramas.firstOrNull { it.isTrending } ?: dramas.firstOrNull()
-    val previewEpisode = featured?.episodes?.firstOrNull { it.videoUrl.contains("Messenger_creation_2575CBA0-D92C-44F1-9E55-0D4795C49A72") } ?: featured?.episodes?.firstOrNull()
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedGenre by remember { mutableStateOf("All") }
+    val genres = listOf("All", "CEO Romance", "Historical Revenge", "Urban Action", "Dark Romance", "Suspense", "Fantasy Rebirth")
+    val visibleDramas = dramas.filter { drama ->
+        val matchesSearch = searchQuery.isBlank() ||
+            drama.title.contains(searchQuery, ignoreCase = true) ||
+            drama.synopsis.contains(searchQuery, ignoreCase = true) ||
+            drama.genre.contains(searchQuery, ignoreCase = true) ||
+            drama.tags.any { it.contains(searchQuery, ignoreCase = true) }
+        val matchesGenre = selectedGenre == "All" || drama.genre == selectedGenre
+        matchesSearch && matchesGenre
+    }
+    val featured = visibleDramas.firstOrNull { it.isTrending } ?: visibleDramas.firstOrNull()
+    val previewEpisode = featured?.episodes?.firstOrNull()
     var previewIsPlaying by remember(previewEpisode?.videoUrl) { mutableStateOf(true) }
 
     LazyColumn(
@@ -74,6 +89,49 @@ fun ReelDramaHomeScreen(
                 Text("DRAMA", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.weight(1f))
                 Text("Discover", color = TextSecondary, fontSize = 13.sp)
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                singleLine = true,
+                placeholder = { Text("ड्रामा खोजें / Search dramas") },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = RubyRed,
+                    unfocusedBorderColor = Color(0xFF454552),
+                    cursorColor = RubyRed
+                )
+            )
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(genres) { genre ->
+                    FilterChip(
+                        selected = selectedGenre == genre,
+                        onClick = { selectedGenre = genre },
+                        label = { Text(if (genre == "All") "सभी" else genre) }
+                    )
+                }
+            }
+        }
+
+        if (visibleDramas.isEmpty()) {
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("कोई ड्रामा नहीं मिला", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("दूसरा नाम या कैटेगरी खोजें", color = TextSecondary, fontSize = 13.sp)
+                }
             }
         }
 
@@ -205,7 +263,7 @@ fun ReelDramaHomeScreen(
             DramaSection(
                 title = "Trending Now",
                 subtitle = "Popular stories people are watching",
-                dramas = dramas.filter { it.isTrending },
+                dramas = visibleDramas.filter { it.isTrending },
                 onPlayDrama = onPlayDrama
             )
         }
@@ -214,7 +272,7 @@ fun ReelDramaHomeScreen(
             DramaSection(
                 title = "Short Dramas",
                 subtitle = "Quick stories. Big twists.",
-                dramas = dramas,
+                dramas = visibleDramas,
                 onPlayDrama = onPlayDrama
             )
         }
