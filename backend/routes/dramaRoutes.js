@@ -277,6 +277,36 @@ router.get('/admin/providers/:provider/episodes/:code', requireAdmin, async (req
   }
 });
 
+
+// Read-only ShortMax catalogue endpoints for the app's private integration test.
+// Provider credentials remain on the server; signed episode URLs are fetched fresh.
+router.get('/providers/shortmax/popular', async (req, res) => {
+  const lang = String(req.query.lang || 'id').toLowerCase();
+  const page = Math.max(1, Math.min(1000, Number.parseInt(req.query.page || '1', 10) || 1));
+  if (!/^[a-z]{2,5}(_[a-z]{2})?$/.test(lang)) {
+    return res.status(400).json({ success: false, message: 'Invalid language code.' });
+  }
+  try {
+    const data = await callApiShort('shortmax/api/v1/popular', { lang, page });
+    res.set('Cache-Control', 'private, max-age=60');
+    return res.json({ success: true, provider: 'shortmax', lang, page, data });
+  } catch (error) {
+    return res.status(error.status || 502).json({ success: false, message: error.message });
+  }
+});
+
+router.get('/providers/shortmax/episodes/:code', async (req, res) => {
+  const code = String(req.params.code || '');
+  if (!/^\\d{1,20}$/.test(code)) return res.status(400).json({ success: false, message: 'Invalid drama code.' });
+  try {
+    const data = await callApiShort(`shortmax/api/v1/alleps/${code}`);
+    res.set('Cache-Control', 'no-store');
+    return res.json({ success: true, provider: 'shortmax', code, data });
+  } catch (error) {
+    return res.status(error.status || 502).json({ success: false, message: error.message });
+  }
+});
+
 // -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
