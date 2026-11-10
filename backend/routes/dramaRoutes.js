@@ -206,6 +206,94 @@ router.get('/catalog/dramabox/languages', async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// APISHORT / DRAMABOX READ-ONLY CATALOG PROXY
+// API key stays on the server. Query parameters are passed through
+// unchanged because APIShort defines parameters per endpoint.
+// -------------------------------------------------------------
+const APISHORT_DRAMABOX_ENDPOINTS = new Set([
+  'languages', 'latest', 'trending', 'foryou', 'browse',
+  'dubbed', 'search', 'detail', 'allepisode'
+]);
+
+router.get('/catalog/dramabox/:endpoint', async (req, res) => {
+  const endpoint = String(req.params.endpoint || '').toLowerCase();
+  if (!APISHORT_DRAMABOX_ENDPOINTS.has(endpoint)) {
+    return res.status(404).json({
+      success: false,
+      provider: 'APIShort',
+      message: 'Unsupported DramaBox endpoint.'
+    });
+  }
+
+  const apiKey = process.env.APISHORT_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      provider: 'APIShort',
+      message: 'APIShort is not configured on the server.'
+    });
+  }
+
+  const url = new URL(`https://apishort.com/v1/dramabox/api/dramabox/${endpoint}`);
+  for (const [key, value] of Object.entries(req.query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) url.searchParams.append(key, String(item));
+    } else if (value !== undefined) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const upstream = await fetch(url, {
+      method: 'GET',
+      headers: { 'x-token': apiKey, Accept: 'application/json' },
+      signal: controller.signal
+    });
+    const bodyText = await upstream.text();
+    let payload;
+    try { payload = JSON.parse(bodyText); }
+    catch { payload = { raw: bodyText.slice(0, 4000) }; }
+
+    if (!upstream.ok) {
+      return res.status(upstream.status === 429 ? 429 : 502).json({
+        success: false,
+        provider: 'APIShort',
+        platform: 'DramaBox',
+        endpoint,
+        upstreamStatus: upstream.status,
+        message: upstream.status === 401 || upstream.status === 403
+          ? 'APIShort rejected the server key.'
+          : upstream.status === 429
+            ? 'APIShort rate limit reached.'
+            : 'DramaBox catalog request failed.',
+        details: payload
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      provider: 'APIShort',
+      platform: 'DramaBox',
+      endpoint,
+      data: payload
+    });
+  } catch (error) {
+    const timedOut = error.name === 'AbortError';
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      provider: 'APIShort',
+      platform: 'DramaBox',
+      endpoint,
+      message: timedOut ? 'APIShort request timed out.' : 'Could not reach APIShort.'
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+// -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
 
