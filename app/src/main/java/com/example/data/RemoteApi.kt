@@ -12,6 +12,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 import retrofit2.http.Path
 import java.util.Locale
 import java.util.concurrent.TimeUnit
@@ -76,11 +77,44 @@ data class ViewResponse(
     val viewsCount: Long = 0L
 )
 
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxPopularResponse(val success: Boolean = false, val data: List<ShortMaxDramaDto> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxDramaDto(
+    val id: Long = 0L, val code: String = "", val name: String = "",
+    val cover: String = "", val episodes: Int = 0, val summary: String = "",
+    val tags: List<String> = emptyList(), val views: Long = 0L, val favorites: Long = 0L
+)
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxEpisodesResponse(val success: Boolean = false, val data: ShortMaxEpisodesData? = null)
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxEpisodesData(val code: String = "", val cover: String = "", val episodes: List<ShortMaxEpisodeDto> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxEpisodeDto(val id: Long = 0L, val episode: Int = 0, val duration: Int = 0, val video: ShortMaxVideoDto? = null)
+
+@JsonClass(generateAdapter = true)
+data class ShortMaxVideoDto(
+    @Json(name = "video_480") val video480: String? = null,
+    @Json(name = "video_720") val video720: String? = null,
+    @Json(name = "video_1080") val video1080: String? = null
+)
+
 // ---------- Retrofit ----------
 
 interface ReelApi {
     @GET("dramas")
     suspend fun getDramas(): DramaListResponse
+
+    @GET("providers/shortmax/popular")
+    suspend fun getShortMaxPopular(@Query("lang") lang: String = "id", @Query("page") page: Int = 1): ShortMaxPopularResponse
+
+    @GET("providers/shortmax/episodes/{code}")
+    suspend fun getShortMaxEpisodes(@Path("code") code: String): ShortMaxEpisodesResponse
 
     @POST("episodes/{id}/like")
     suspend fun likeEpisode(@Path("id") id: String, @Body body: LikeRequest): LikeResponse
