@@ -66,7 +66,8 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
   const provider = String(req.query.provider || 'dramabox').toLowerCase();
   const keyword = String(req.query.keyword || '').trim();
 
-  const config = getDramaBosSearchConfig(provider);\n  if (!config) {
+  const config = getDramaBosSearchConfig(provider);
+  if (!config) {
     return res.status(400).json({
       success: false,
       message: 'Unsupported provider slug. Choose one of the 42 documented DramaBos provider slugs.'
@@ -84,7 +85,6 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
     });
   }
 
-  const config = DRAMABOS_SEARCH_PROVIDERS[provider];
   const url = new URL(config.path, 'https://dramabos.live');
   url.searchParams.set(config.queryParam, keyword);
 
