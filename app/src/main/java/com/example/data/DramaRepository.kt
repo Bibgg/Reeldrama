@@ -9,6 +9,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
+private fun formatShortMaxCount(value: Long): String = when {
+    value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
+    value >= 1_000 -> String.format(java.util.Locale.US, "%.1fK", value / 1_000.0)
+    else -> value.toString()
+}
+
 class DramaRepository {
 
     companion object {
@@ -134,9 +140,44 @@ class DramaRepository {
             require(base.isNotBlank() && !base.contains("example.com")) {
                 "Backend URL not set"
             }
-            val remote = api().getDramas().data
+            val remoteMongo = api().getDramas().data
                 .map { it.toDomain() }
                 .filter { it.episodes.isNotEmpty() }
+            // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
+            val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
+                api().getShortMaxPopular(lang = "id", page = 1).data.take(12).mapNotNull { item ->
+                    val code = item.code.ifBlank { return@mapNotNull null }
+                    val eps = api().getShortMaxEpisodes(code).data?.episodes.orEmpty().mapNotNull { ep ->
+                        val videoUrl = ep.video?.video1080?.takeIf { it.startsWith("https://") }
+                            ?: ep.video?.video720?.takeIf { it.startsWith("https://") }
+                            ?: ep.video?.video480?.takeIf { it.startsWith("https://") }
+                            ?: return@mapNotNull null
+                        Episode(
+                            id = "shortmax-" + code + "-" + ep.episode,
+                            dramaId = "shortmax-" + code,
+                            episodeNumber = ep.episode,
+                            title = "Episode " + ep.episode,
+                            videoUrl = videoUrl,
+                            durationSec = ep.duration.coerceAtLeast(1),
+                            thumbnailUrl = item.cover
+                        )
+                    }.sortedBy { it.episodeNumber }
+                    if (eps.isEmpty()) return@mapNotNull null
+                    DramaSeries(
+                        id = "shortmax-" + code,
+                        title = item.name,
+                        synopsis = item.summary,
+                        genre = item.tags.firstOrNull().orEmpty(),
+                        tags = item.tags,
+                        totalEpisodes = maxOf(item.episodes, eps.size),
+                        rating = 0f,
+                        viewsCountFormatted = formatShortMaxCount(item.views),
+                        coverImageUrl = item.cover,
+                        isTrending = true,
+                        episodes = eps
+                    )
+                }
+            }
             loadedFromServer = true
             _dramas.value = remote
             _currentDramaId.value = remote.firstOrNull()?.id.orEmpty()
