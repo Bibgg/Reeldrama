@@ -141,6 +141,106 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// APISHORT PROVIDER CATALOG (Admin-only metadata discovery)
+// Requires APISHORT_API_KEY in Render Environment Variables.
+// This proxies catalog metadata only; it does not bypass provider playback
+// controls or grant content redistribution rights.
+// -------------------------------------------------------------
+const APISHORT_PROVIDERS = [
+  'shortmax', 'blinkdrama', 'vibeshort', 'storyreel', 'dramarush',
+  'dramawave', 'dramabox', 'netshort', 'flextv', 'flickreels',
+  'reelshort', 'stardusttv', 'dramabite', 'starshort', 'microdrama',
+  'melolo', 'shortwave', 'cubetv', 'pinedrama', 'raptdrama',
+  'goodshort', 'joyreels', 'vigloo'
+];
+
+async function callApiShort(path, query = {}) {
+  const apiKey = process.env.APISHORT_API_KEY;
+  if (!apiKey) {
+    const error = new Error('APISHORT_API_KEY is not configured on the server.');
+    error.status = 503;
+    throw error;
+  }
+  const url = new URL(`/v1/${path}`, 'https://apishort.com');
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url, {
+      headers: { 'X-API-Key': apiKey, Accept: 'application/json' },
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    let data;
+    try { data = JSON.parse(raw); } catch { data = { message: raw.slice(0, 1500) }; }
+    if (!response.ok) {
+      const error = new Error(response.status === 401 || response.status === 403
+        ? 'APISHort rejected the API key. Update APISHORT_API_KEY in Render.'
+        : response.status === 429
+          ? 'APISHort rate limit reached.'
+          : 'APISHort provider request failed.');
+      error.status = response.status === 429 ? 429 : 502;
+      error.upstreamStatus = response.status;
+      error.details = data;
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      const timeoutError = new Error('APISHort request timed out.');
+      timeoutError.status = 504;
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+router.get('/admin/providers', requireAdmin, (req, res) => {
+  res.json({ success: true, source: 'APISHort', providers: APISHORT_PROVIDERS });
+});
+
+router.get('/admin/providers/:provider/languages', requireAdmin, async (req, res) => {
+  const provider = String(req.params.provider || '').toLowerCase();
+  if (!APISHORT_PROVIDERS.includes(provider)) {
+    return res.status(400).json({ success: false, message: 'Unsupported APISHort provider.' });
+  }
+  try {
+    const data = await callApiShort(`${provider}/api/v1/languages`);
+    res.json({ success: true, provider, data });
+  } catch (error) {
+    res.status(error.status || 502).json({
+      success: false, provider, message: error.message,
+      upstreamStatus: error.upstreamStatus, details: error.details
+    });
+  }
+});
+
+router.get('/admin/providers/:provider/popular', requireAdmin, async (req, res) => {
+  const provider = String(req.params.provider || '').toLowerCase();
+  const lang = String(req.query.lang || 'en').toLowerCase();
+  const page = Math.max(1, Math.min(1000, Number.parseInt(req.query.page || '1', 10) || 1));
+  if (!APISHORT_PROVIDERS.includes(provider)) {
+    return res.status(400).json({ success: false, message: 'Unsupported APISHort provider.' });
+  }
+  if (!/^[a-z]{2,5}(_[a-z]{2})?$/.test(lang)) {
+    return res.status(400).json({ success: false, message: 'Invalid language code.' });
+  }
+  try {
+    const data = await callApiShort(`${provider}/api/v1/popular`, { lang, page });
+    res.json({ success: true, provider, lang, page, source: 'APISHort', data });
+  } catch (error) {
+    res.status(error.status || 502).json({
+      success: false, provider, lang, message: error.message,
+      upstreamStatus: error.upstreamStatus, details: error.details
+    });
+  }
+});
+
+// -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
 
