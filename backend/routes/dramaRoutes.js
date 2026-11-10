@@ -235,6 +235,10 @@ router.get('/catalog/dramabox/:endpoint', async (req, res) => {
   }
 
   const url = new URL(`https://apishort.com/v1/dramabox/api/dramabox/${endpoint}`);
+  // APIShort requires classify for the dubbed feed; default to popular.
+  if (endpoint === 'dubbed' && !req.query.classify) {
+    url.searchParams.set('classify', 'terpopuler');
+  }
   for (const [key, value] of Object.entries(req.query)) {
     if (Array.isArray(value)) {
       for (const item of value) url.searchParams.append(key, String(item));
