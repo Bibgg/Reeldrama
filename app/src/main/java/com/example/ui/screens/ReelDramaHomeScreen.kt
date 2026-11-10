@@ -54,7 +54,7 @@ fun ReelDramaHomeScreen(
     onBrowseAll: () -> Unit
 ) {
     val featured = dramas.firstOrNull { it.isTrending } ?: dramas.firstOrNull()
-    val previewEpisode = featured?.episodes?.firstOrNull()
+    val previewEpisode = featured?.episodes?.firstOrNull { it.videoUrl.contains("Messenger_creation_2575CBA0-D92C-44F1-9E55-0D4795C49A72") } ?: featured?.episodes?.firstOrNull()
     var previewIsPlaying by remember(previewEpisode?.videoUrl) { mutableStateOf(true) }
 
     LazyColumn(
