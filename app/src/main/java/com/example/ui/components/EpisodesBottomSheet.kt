@@ -229,26 +229,36 @@ fun EpisodesBottomSheet(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                itemsIndexed(drama.episodes) { index, ep ->
-                    val isCurrentlyPlaying = index == currentEpisodeIndex
-                    EpisodeItemCard(
-                        episode = ep,
-                        isPlaying = isCurrentlyPlaying,
-                        onSelect = {
-                            onEpisodeSelected(index)
-                            onDismiss()
+                if (drama.episodes.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "अभी कोई एपिसोड उपलब्ध नहीं है",
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "नए एपिसोड जुड़ने पर यहाँ दिखाई देंगे",
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 12.sp
+                            )
                         }
-                    )
-                }
-
-                // Placeholder rows for unreleased/future episodes in the drama (up to totalEpisodes)
-                if (drama.episodes.size < drama.totalEpisodes) {
-                    val remaining = minOf(5, drama.totalEpisodes - drama.episodes.size)
-                    items(remaining) { offset ->
-                        val futureNum = drama.episodes.size + offset + 1
-                        FutureEpisodeItemCard(
-                            episodeNumber = futureNum,
-                            totalEpisodes = drama.totalEpisodes
+                    }
+                } else {
+                    itemsIndexed(drama.episodes) { index, ep ->
+                        val isCurrentlyPlaying = index == currentEpisodeIndex
+                        EpisodeItemCard(
+                            episode = ep,
+                            isPlaying = isCurrentlyPlaying,
+                            onSelect = {
+                                onEpisodeSelected(index)
+                                onDismiss()
+                            }
                         )
                     }
                 }
