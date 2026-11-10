@@ -38,6 +38,97 @@ const requireAdmin = (req, res, next) => {
 };
 
 // -------------------------------------------------------------
+// DRAMABOS CATALOG SEARCH (Admin-only; metadata discovery only)
+// Requires DRAMABOS_API_KEY in Render environment variables.
+// This endpoint does not download, mirror, or re-host provider videos.
+// -------------------------------------------------------------
+const DRAMABOS_SEARCH_PROVIDERS = {
+  dramabox: { path: '/dramabox/api/v1/search', queryParam: 'keyword' },
+  shortmax: { path: '/shortmax/api/v1/search', queryParam: 'q' },
+  reelshort: { path: '/reelshort/api/v1/search', queryParam: 'q' },
+  starshort: { path: '/starshort/api/v1/search', queryParam: 'q' },
+  flickreels: { path: '/flickreels/api/flickreels/search', queryParam: 'q' }
+};
+
+router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
+  const provider = String(req.query.provider || 'dramabox').toLowerCase();
+  const keyword = String(req.query.keyword || '').trim();
+
+  if (!DRAMABOS_SEARCH_PROVIDERS[provider]) {
+    return res.status(400).json({
+      success: false,
+      message: 'Unsupported provider. Choose dramabox, shortmax, reelshort, starshort, or flickreels.'
+    });
+  }
+  if (keyword.length < 2 || keyword.length > 80) {
+    return res.status(400).json({ success: false, message: 'keyword must be 2 to 80 characters.' });
+  }
+
+  const apiKey = process.env.DRAMABOS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({
+      success: false,
+      message: 'DramaBos is not configured. Add DRAMABOS_API_KEY to Render Environment Variables.'
+    });
+  }
+
+  const config = DRAMABOS_SEARCH_PROVIDERS[provider];
+  const url = new URL(config.path, 'https://dramabos.live');
+  url.searchParams.set(config.queryParam, keyword);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const upstream = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json'
+      },
+      signal: controller.signal
+    });
+    const bodyText = await upstream.text();
+    let payload;
+    try {
+      payload = JSON.parse(bodyText);
+    } catch {
+      payload = { raw: bodyText.slice(0, 2000) };
+    }
+
+    if (!upstream.ok) {
+      return res.status(upstream.status === 429 ? 429 : 502).json({
+        success: false,
+        provider,
+        upstreamStatus: upstream.status,
+        message: upstream.status === 401 || upstream.status === 403
+          ? 'DramaBos rejected the API key. Check DRAMABOS_API_KEY.'
+          : upstream.status === 429
+            ? 'DramaBos free request limit/rate limit reached.'
+            : 'DramaBos search request failed.',
+        details: typeof payload === 'object' ? payload : undefined
+      });
+    }
+
+    return res.json({
+      success: true,
+      provider,
+      keyword,
+      source: 'DramaBos',
+      data: payload
+    });
+  } catch (error) {
+    const timedOut = error.name === 'AbortError';
+    return res.status(timedOut ? 504 : 502).json({
+      success: false,
+      provider,
+      message: timedOut ? 'DramaBos request timed out.' : 'Could not reach DramaBos API.'
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
+// -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
 
