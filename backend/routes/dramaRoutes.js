@@ -42,22 +42,34 @@ const requireAdmin = (req, res, next) => {
 // Requires DRAMABOS_API_KEY in Render environment variables.
 // This endpoint does not download, mirror, or re-host provider videos.
 // -------------------------------------------------------------
-const DRAMABOS_SEARCH_PROVIDERS = {
-  dramabox: { path: '/dramabox/api/v1/search', queryParam: 'keyword' },
-  shortmax: { path: '/shortmax/api/v1/search', queryParam: 'q' },
-  reelshort: { path: '/reelshort/api/v1/search', queryParam: 'q' },
-  starshort: { path: '/starshort/api/v1/search', queryParam: 'q' },
-  flickreels: { path: '/flickreels/api/flickreels/search', queryParam: 'q' }
+// Provider slugs listed by DramaBos. Most providers use the standard
+// /{provider}/api/v1/search?keyword=... route. ShortMax and FlickReels
+// document their own route/query format.
+const DRAMABOS_PROVIDER_SLUGS = [
+  'starshort', 'dramabite', 'freereels', 'fundrama', 'microdrama', 'vigloo',
+  'bilitv', 'dramabox', 'dramawave', 'netshort', 'idrama', 'shortmax',
+  'goodshort', 'melolo', 'velolo', 'reelshort', 'flickreels', 'stardusttv',
+  'serialplus', 'dotdrama', 'rapidtv', 'shortswave', 'dramanova', 'cubetv',
+  'reelbuzz', 'flareflow', 'moboreels', 'happyshort', 'reelife', 'pinedrama',
+  'flextv', 'reelala', 'anyreel', 'raptdrama', 'bonustv', 'minitv',
+  'golddrama', 'iqiyi', 'bstation', 'joyreels', 'kalostv', 'vibeshort'
+];
+
+const getDramaBosSearchConfig = (provider) => {
+  if (!DRAMABOS_PROVIDER_SLUGS.includes(provider)) return null;
+  if (provider === 'shortmax') return { path: '/shortmax/api/v1/search', queryParam: 'q' };
+  if (provider === 'flickreels') return { path: '/flickreels/api/flickreels/search', queryParam: 'q' };
+  return { path: `/${provider}/api/v1/search`, queryParam: 'keyword' };
 };
 
 router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
   const provider = String(req.query.provider || 'dramabox').toLowerCase();
   const keyword = String(req.query.keyword || '').trim();
 
-  if (!DRAMABOS_SEARCH_PROVIDERS[provider]) {
+  const config = getDramaBosSearchConfig(provider);\n  if (!config) {
     return res.status(400).json({
       success: false,
-      message: 'Unsupported provider. Choose dramabox, shortmax, reelshort, starshort, or flickreels.'
+      message: 'Unsupported provider slug. Choose one of the 42 documented DramaBos provider slugs.'
     });
   }
   if (keyword.length < 2 || keyword.length > 80) {
