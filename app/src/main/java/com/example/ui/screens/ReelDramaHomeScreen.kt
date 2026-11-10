@@ -281,7 +281,7 @@ fun ReelDramaHomeScreen(
             DramaSection(
                 title = "More to Explore",
                 subtitle = "Discover your next favorite drama",
-                dramas = dramas,
+                dramas = visibleDramas,
                 onPlayDrama = onPlayDrama
             )
         }
