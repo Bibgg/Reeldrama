@@ -23,7 +23,7 @@ const DramaSchema = new mongoose.Schema(
     genre: {
       type: String,
       required: true,
-      enum: ['CEO Romance', 'Historical Revenge', 'Urban Action', 'Dark Romance', 'Suspense', 'Fantasy Rebirth']
+      enum: ['CEO Romance', 'Historical Revenge', 'Urban Action', 'Dark Romance', 'Suspense', 'Fantasy Rebirth', 'Open Movies']
     },
     tags: [{
       type: String,
