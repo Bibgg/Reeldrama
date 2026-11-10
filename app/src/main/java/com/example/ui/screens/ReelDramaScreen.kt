@@ -82,7 +82,8 @@ fun ReelDramaScreen(
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Home, 1 = Reels
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Home, 1 = Reels, 2 = Details
+    var selectedDramaId by remember { mutableStateOf<String?>(null) }
     var isControlsVisible by remember { mutableStateOf(true) }
     val rootView = LocalView.current
     val activityWindow = (context as? Activity)?.window
@@ -156,11 +157,25 @@ fun ReelDramaScreen(
             ReelDramaHomeScreen(
                 dramas = uiState.availableDramas,
                 onPlayDrama = { dramaId ->
-                    viewModel.selectDrama(dramaId, 0)
-                    selectedTab = 1
+                    selectedDramaId = dramaId
+                    selectedTab = 2
                 },
                 onBrowseAll = { viewModel.setActiveSheet(ActiveSheet.SERIES_BROWSER) }
             )
+        } else if (selectedTab == 2) {
+            val selectedDrama = uiState.availableDramas.firstOrNull { it.id == selectedDramaId }
+            if (selectedDrama != null) {
+                DramaDetailsScreen(
+                    drama = selectedDrama,
+                    onBack = { selectedTab = 0 },
+                    onWatch = {
+                        viewModel.selectDrama(selectedDrama.id, 0)
+                        selectedTab = 1
+                    }
+                )
+            } else {
+                selectedTab = 0
+            }
         } else {
         VerticalPager(
             state = pagerState,
