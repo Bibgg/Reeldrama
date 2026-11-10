@@ -47,7 +47,7 @@ const requireAdmin = (req, res, next) => {
 // document their own route/query format.
 const DRAMABOS_PROVIDER_SLUGS = [
   'starshort', 'dramabite', 'freereels', 'fundrama', 'microdrama', 'vigloo',
-  'bilitv', 'dramabox', 'dramawave', 'netshort', 'idrama', 'shortmax',
+  'bilitv', 'dramawave', 'netshort', 'idrama', 'shortmax',
   'goodshort', 'melolo', 'velolo', 'reelshort', 'flickreels', 'stardusttv',
   'serialplus', 'dotdrama', 'rapidtv', 'shortswave', 'dramanova', 'cubetv',
   'reelbuzz', 'flareflow', 'moboreels', 'happyshort', 'reelife', 'pinedrama',
@@ -63,7 +63,7 @@ const getDramaBosSearchConfig = (provider) => {
 };
 
 router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
-  const provider = String(req.query.provider || 'dramabox').toLowerCase();
+  const provider = String(req.query.provider || 'starshort').toLowerCase();
   const keyword = String(req.query.keyword || '').trim();
 
   const config = getDramaBosSearchConfig(provider);
