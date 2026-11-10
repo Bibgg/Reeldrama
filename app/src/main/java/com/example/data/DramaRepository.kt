@@ -34,22 +34,10 @@ class DramaRepository {
         }
     }
 
-    // Default fast public streaming CDN & Cloudinary video URLs
-    private val videoStreamUrls = listOf(
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        "https://res.cloudinary.com/rgsshthg/video/upload/v1794084108/Messenger_creation_2575CBA0-D92C-44F1-9E55-0D4795C49A72.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-        "https://res.cloudinary.com/demo/video/upload/sea-turtle.mp4",
-        "https://res.cloudinary.com/demo/video/upload/dog.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
-    )
-
     private val _dramas = MutableStateFlow<List<DramaSeries>>(emptyList())
     val dramas: StateFlow<List<DramaSeries>> = _dramas.asStateFlow()
 
-    private val _currentDramaId = MutableStateFlow<String>("drama_billionaire_bride")
+    private val _currentDramaId = MutableStateFlow<String>("")
     val currentDramaId: StateFlow<String> = _currentDramaId.asStateFlow()
 
     private val _currentEpisodeIndex = MutableStateFlow<Int>(0)
