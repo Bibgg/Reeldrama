@@ -149,7 +149,7 @@ router.get('/admin/catalog/search', requireAdmin, async (req, res) => {
 router.get('/dramas', async (req, res) => {
   try {
     const { genre, trending, sort } = req.query;
-    const filter = {};
+    const filter = { isPublished: true };
     if (genre && genre !== 'All') filter.genre = genre;
     if (trending === 'true') filter.isTrending = true;
     // Latest is the default catalogue order; trending remains a separate section.
@@ -179,7 +179,7 @@ router.get('/dramas', async (req, res) => {
 // @desc    Get drama series by ID with full episodes list
 router.get('/dramas/:id', async (req, res) => {
   try {
-    const drama = await Drama.findById(req.params.id).populate({
+    const drama = await Drama.findOne({ _id: req.params.id, isPublished: true }).populate({
       path: 'episodes',
       options: { sort: { episodeNumber: 1 } }
     });
@@ -198,6 +198,8 @@ router.get('/dramas/:id', async (req, res) => {
 // @desc    Get all episodes for a specific drama series
 router.get('/dramas/:id/episodes', async (req, res) => {
   try {
+    const publishedDrama = await Drama.findOne({ _id: req.params.id, isPublished: true }).select('_id');
+    if (!publishedDrama) return res.status(404).json({ success: false, message: 'Drama series not found' });
     const episodes = await Episode.find({ drama: req.params.id }).sort({ episodeNumber: 1 });
     res.json({ success: true, count: episodes.length, data: episodes });
   } catch (error) {
@@ -277,6 +279,20 @@ router.post('/admin/upload-video', requireAdmin, (req, res) => {
 
 // @route   POST /api/admin/dramas
 // @desc    Create new drama series
+// Publish only after confirming content ownership, streaming rights and playable episode sources.
+router.patch('/admin/dramas/:id/publication', requireAdmin, async (req, res) => {
+  try {
+    if (typeof req.body.isPublished !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'isPublished must be true or false.' });
+    }
+    const drama = await Drama.findByIdAndUpdate(req.params.id, { $set: { isPublished: req.body.isPublished } }, { new: true, runValidators: true });
+    if (!drama) return res.status(404).json({ success: false, message: 'Drama series not found' });
+    res.json({ success: true, data: drama });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
+
 router.post('/admin/dramas', requireAdmin, async (req, res) => {
   try {
     const drama = await Drama.create(req.body);
