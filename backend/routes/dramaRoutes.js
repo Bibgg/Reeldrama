@@ -240,6 +240,43 @@ router.get('/admin/providers/:provider/popular', requireAdmin, async (req, res) 
   }
 });
 
+
+// ShortMax drama details and episode list. Episode responses contain expiring
+// signed HLS URLs, so the app must request this endpoint again when refreshing playback.
+router.get('/admin/providers/:provider/detail/:code', requireAdmin, async (req, res) => {
+  const provider = String(req.params.provider || '').toLowerCase();
+  const code = String(req.params.code || '');
+  if (provider !== 'shortmax' || !/^\\d{1,20}$/.test(code)) {
+    return res.status(400).json({ success: false, message: 'ShortMax provider and a numeric drama code are required.' });
+  }
+  try {
+    const data = await callApiShort(`${provider}/api/v1/detail/${code}`);
+    res.json({ success: true, provider, code, source: 'APISHort', data });
+  } catch (error) {
+    res.status(error.status || 502).json({
+      success: false, provider, code, message: error.message,
+      upstreamStatus: error.upstreamStatus, details: error.details
+    });
+  }
+});
+
+router.get('/admin/providers/:provider/episodes/:code', requireAdmin, async (req, res) => {
+  const provider = String(req.params.provider || '').toLowerCase();
+  const code = String(req.params.code || '');
+  if (provider !== 'shortmax' || !/^\\d{1,20}$/.test(code)) {
+    return res.status(400).json({ success: false, message: 'ShortMax provider and a numeric drama code are required.' });
+  }
+  try {
+    const data = await callApiShort(`${provider}/api/v1/alleps/${code}`);
+    res.json({ success: true, provider, code, source: 'APISHort', data });
+  } catch (error) {
+    res.status(error.status || 502).json({
+      success: false, provider, code, message: error.message,
+      upstreamStatus: error.upstreamStatus, details: error.details
+    });
+  }
+});
+
 // -------------------------------------------------------------
 // PUBLIC VIEWER ENDPOINTS (Zero Upload - Pure Watching Experience)
 // -------------------------------------------------------------
