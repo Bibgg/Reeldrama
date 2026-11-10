@@ -58,14 +58,14 @@ fun ReelDramaHomeScreen(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedGenre by remember { mutableStateOf("All") }
-    val genres = listOf("All", "CEO Romance", "Historical Revenge", "Urban Action", "Dark Romance", "Suspense", "Fantasy Rebirth")
+    val genres = listOf("All") + dramas.map { it.genre }.filter { it.isNotBlank() }.distinct().sorted()
     val visibleDramas = dramas.filter { drama ->
         val matchesSearch = searchQuery.isBlank() ||
             drama.title.contains(searchQuery, ignoreCase = true) ||
             drama.synopsis.contains(searchQuery, ignoreCase = true) ||
             drama.genre.contains(searchQuery, ignoreCase = true) ||
             drama.tags.any { it.contains(searchQuery, ignoreCase = true) }
-        val matchesGenre = selectedGenre == "All" || drama.genre == selectedGenre
+        val matchesGenre = selectedGenre == "All" || drama.genre.equals(selectedGenre, ignoreCase = true)
         matchesSearch && matchesGenre
     }
     val featured = visibleDramas.firstOrNull { it.isTrending } ?: visibleDramas.firstOrNull()
@@ -270,8 +270,8 @@ fun ReelDramaHomeScreen(
 
         item {
             DramaSection(
-                title = "Short Dramas",
-                subtitle = "Quick stories. Big twists.",
+                title = "Latest Dramas",
+                subtitle = "नए जोड़े गए ड्रामा",
                 dramas = visibleDramas,
                 onPlayDrama = onPlayDrama
             )
@@ -279,9 +279,9 @@ fun ReelDramaHomeScreen(
 
         item {
             DramaSection(
-                title = "More to Explore",
-                subtitle = "Discover your next favorite drama",
-                dramas = visibleDramas,
+                title = "Popular Categories",
+                subtitle = "Explore dramas by genre",
+                dramas = visibleDramas.distinctBy { it.genre }.filter { it.genre.isNotBlank() },
                 onPlayDrama = onPlayDrama
             )
         }
