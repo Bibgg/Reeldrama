@@ -1,11 +1,5 @@
 package com.example.ui.components
 
-import android.graphics.SurfaceTexture
-import android.media.MediaPlayer
-import android.net.Uri
-import android.view.Surface
-import android.view.TextureView
-import android.widget.FrameLayout
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -23,6 +17,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +41,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import com.example.ui.theme.OnyxBlack
 import com.example.ui.theme.RubyRed
 import kotlinx.coroutines.delay
@@ -53,37 +54,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/**
- * Guarantees that only one MediaPlayer in the reels pager can produce audio/video.
- * Adjacent pager pages may be composed at the same time, so each player must claim
- * playback ownership before starting.
- */
-private object ReelPlaybackCoordinator {
-    private var activePlayer: MediaPlayer? = null
+data class FloatingHeart(val id: Long, val offset: Offset, val rotation: Float)
 
-    @Synchronized
-    fun claim(player: MediaPlayer) {
-        val previous = activePlayer
-        if (previous !== player) {
-            try {
-                if (previous?.isPlaying == true) previous.pause()
-            } catch (_: Exception) {}
-            activePlayer = player
-        }
-    }
-
-    @Synchronized
-    fun release(player: MediaPlayer) {
-        if (activePlayer === player) activePlayer = null
-    }
-}
-
-data class FloatingHeart(
-    val id: Long,
-    val offset: Offset,
-    val rotation: Float
-)
-
+/** Media3/ExoPlayer handles HLS (.m3u8), adaptive quality and expiring stream URLs. */
 @Composable
 fun VideoSurfacePlayer(
     videoUrl: String,
@@ -98,308 +71,138 @@ fun VideoSurfacePlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    // Read the latest page state inside asynchronous MediaPlayer callbacks.
+    val scope = rememberCoroutineScope()
     val latestIsPlaying = rememberUpdatedState(isPlaying)
-    val latestIsMuted = rememberUpdatedState(isMuted)
-    val latestPlaybackSpeed = rememberUpdatedState(playbackSpeed)
-
-    var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
-    var isBuffering by remember { mutableStateOf(true) }
-    var isReady by remember { mutableStateOf(false) }
-    var surfaceTextureRef by remember { mutableStateOf<SurfaceTexture?>(null) }
-    var surfaceRef by remember { mutableStateOf<Surface?>(null) }
-
-    // Floating heart particle animation on double tap
+    val latestCompleted = rememberUpdatedState(onVideoCompleted)
+    val latestProgress = rememberUpdatedState(onProgressUpdate)
+    var player by remember { mutableStateOf<ExoPlayer?>(null) }
+    var buffering by remember { mutableStateOf(true) }
+    var playerError by remember { mutableStateOf<String?>(null) }
     val hearts = remember { mutableStateListOf<FloatingHeart>() }
 
-    // Play/Pause indicator flash animation
-    var showPlayPauseFlash by remember { mutableStateOf(false) }
-
-    // Monitor position periodically
-    LaunchedEffect(mediaPlayer, isReady) {
-        while (isActive) {
-            val player = mediaPlayer
-            if (player != null && isReady) {
-                try {
-                    val current = player.currentPosition.toLong()
-                    val total = player.duration.toLong()
-                    onProgressUpdate(current, total)
-                } catch (_: Exception) {}
-            }
-            delay(250)
-        }
-    }
-
-    // React to isPlaying changes
-    LaunchedEffect(isPlaying, isReady) {
-        val player = mediaPlayer
-        if (player != null && isReady) {
-            try {
-                if (isPlaying) {
-                    ReelPlaybackCoordinator.claim(player)
-                    if (!player.isPlaying) player.start()
-                } else {
-                    if (player.isPlaying) player.pause()
-                    ReelPlaybackCoordinator.release(player)
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    // React to isMuted changes
-    LaunchedEffect(isMuted, isReady) {
-        val player = mediaPlayer
-        if (player != null && isReady) {
-            try {
-                val vol = if (isMuted) 0f else 1f
-                player.setVolume(vol, vol)
-            } catch (_: Exception) {}
-        }
-    }
-
-    // React to playback speed changes
-    LaunchedEffect(playbackSpeed, isReady) {
-        val player = mediaPlayer
-        if (player != null && isReady && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            try {
-                val params = player.playbackParams
-                params.speed = playbackSpeed
-                player.playbackParams = params
-            } catch (_: Exception) {}
-        }
-    }
-
-    // Release player when URL changes or unmounted
     DisposableEffect(videoUrl) {
-        isBuffering = true
-        isReady = false
-
-        val player = MediaPlayer().apply {
-            setOnPreparedListener { mp ->
-                isBuffering = false
-                isReady = true
-                surfaceRef?.let { mp.setSurface(it) }
-                val vol = if (latestIsMuted.value) 0f else 1f
-                mp.setVolume(vol, vol)
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    try {
-                        val p = mp.playbackParams
-                        p.speed = latestPlaybackSpeed.value
-                        mp.playbackParams = p
-                    } catch (_: Exception) {}
+        buffering = true
+        playerError = null
+        if (videoUrl.isBlank()) {
+            player = null
+            buffering = false
+            onDispose { }
+        } else {
+            val exo = ExoPlayer.Builder(context).build()
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    buffering = state == Player.STATE_BUFFERING
+                    if (state == Player.STATE_ENDED) latestCompleted.value()
                 }
-                // A page may have stopped being current while prepareAsync was running.
-                if (latestIsPlaying.value) {
-                    ReelPlaybackCoordinator.claim(mp)
-                    mp.start()
-                } else {
-                    try { mp.pause() } catch (_: Exception) {}
+                override fun onPlayerError(error: PlaybackException) {
+                    buffering = false
+                    playerError = error.errorCodeName
                 }
             }
-            setOnBufferingUpdateListener { _, percent ->
-                if (percent < 100 && !isPlaying) {
-                    isBuffering = true
-                } else {
-                    isBuffering = false
-                }
-            }
-            setOnCompletionListener {
-                onVideoCompleted()
-            }
-            setOnErrorListener { _, _, _ ->
-                isBuffering = false
-                true
+            exo.addListener(listener)
+            exo.setMediaItem(MediaItem.fromUri(videoUrl))
+            exo.prepare()
+            exo.volume = if (isMuted) 0f else 1f
+            exo.playWhenReady = latestIsPlaying.value
+            player = exo
+            onDispose {
+                exo.removeListener(listener)
+                exo.release()
+                if (player === exo) player = null
             }
         }
+    }
 
-        try {
-            player.setDataSource(context, Uri.parse(videoUrl))
-            player.prepareAsync()
-        } catch (_: Exception) {
-            isBuffering = false
-        }
-
-        mediaPlayer = player
-
-        onDispose {
-            ReelPlaybackCoordinator.release(player)
-            try {
-                if (player.isPlaying) player.stop()
-                player.reset()
-                player.release()
-            } catch (_: Exception) {}
-            mediaPlayer = null
+    LaunchedEffect(player, isPlaying) {
+        player?.let { it.playWhenReady = isPlaying }
+    }
+    LaunchedEffect(player, isMuted) {
+        player?.volume = if (isMuted) 0f else 1f
+    }
+    LaunchedEffect(player, playbackSpeed) {
+        player?.setPlaybackSpeed(playbackSpeed.coerceIn(0.25f, 2f))
+    }
+    LaunchedEffect(player) {
+        while (isActive) {
+            player?.let { exo ->
+                latestProgress.value(exo.currentPosition.coerceAtLeast(0L), exo.duration.takeIf { it > 0 } ?: 0L)
+            }
+            delay(500L)
         }
     }
 
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(OnyxBlack)
+        modifier = modifier.fillMaxSize().background(OnyxBlack)
             .testTag("video_player_container")
             .pointerInput(videoUrl) {
                 detectTapGestures(
-                    onTap = {
-                        onSingleTap()
-                    },
+                    onTap = { onSingleTap() },
                     onDoubleTap = { offset ->
-                        val heart = FloatingHeart(
-                            id = System.currentTimeMillis(),
-                            offset = offset,
-                            rotation = (-20..20).random().toFloat()
-                        )
+                        val heart = FloatingHeart(System.currentTimeMillis(), offset, (-20..20).random().toFloat())
                         hearts.add(heart)
                         onDoubleTapHeart(offset.x, offset.y)
-                        coroutineScope.launch {
-                            delay(900)
-                            hearts.remove(heart)
-                        }
+                        scope.launch { delay(900L); hearts.remove(heart) }
                     }
                 )
             }
     ) {
-        // Video Viewport using TextureView
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                TextureView(ctx).apply {
-                    layoutParams = FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                    )
-                    surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                        override fun onSurfaceTextureAvailable(st: SurfaceTexture, w: Int, h: Int) {
-                            surfaceTextureRef = st
-                            val s = Surface(st)
-                            surfaceRef = s
-                            mediaPlayer?.setSurface(s)
-                        }
-
-                        override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, w: Int, h: Int) {}
-
-                        override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-                            surfaceRef?.release()
-                            surfaceRef = null
-                            surfaceTextureRef = null
-                            mediaPlayer?.setSurface(null)
-                            return true
-                        }
-
-                        override fun onSurfaceTextureUpdated(st: SurfaceTexture) {}
-                    }
-                }
-            },
-            update = { textureView ->
-                surfaceRef?.let { s ->
-                    mediaPlayer?.setSurface(s)
-                }
-            }
-        )
-
-        // Subtle cinematic vignetting & gradients (for captions & overlay legibility)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.55f),
-                            Color.Transparent,
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.75f)
-                        ),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY
-                    )
-                )
-        )
-
-        // Loading indicator
-        if (isBuffering && !isReady) {
-            Box(
+        if (player != null) {
+            AndroidView(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    color = RubyRed,
-                    strokeWidth = 3.dp
-                )
-            }
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        useController = false
+                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        setShutterBackgroundColor(android.graphics.Color.BLACK)
+                        player = this@VideoSurfacePlayer.let { null }
+                    }
+                },
+                update = { view -> view.player = player }
+            )
         }
 
-        // Pause indicator stays visible while paused; single tap is reserved for showing/hiding controls.
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
+            Color.Black.copy(alpha = 0.35f), Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.55f)
+        ))))
+
+        if (buffering && playerError == null && videoUrl.isNotBlank()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(48.dp), color = RubyRed, strokeWidth = 3.dp)
+            }
+        }
+        if (playerError != null) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("वीडियो नहीं चल पाया: $playerError", color = Color.White)
+            }
+        }
+        if (videoUrl.isBlank()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("इस एपिसोड का वीडियो लिंक उपलब्ध नहीं है", color = Color.White)
+            }
+        }
         AnimatedVisibility(
-            visible = !isPlaying && isReady,
-            enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
+            visible = !isPlaying && player != null,
+            enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .background(Color.Black.copy(alpha = 0.55f), shape = androidx.compose.foundation.shape.CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Paused",
-                    tint = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.size(48.dp)
-                )
-            }
+            Icon(Icons.Default.PlayArrow, contentDescription = "Paused", tint = Color.White, modifier = Modifier.size(64.dp))
         }
-
-        // Blooming double-tap hearts
         hearts.forEach { heart ->
-            key(heart.id) {
-                AnimatedHeart(offset = heart.offset, rotation = heart.rotation)
-            }
+            key(heart.id) { AnimatedHeart(heart.offset, heart.rotation) }
         }
     }
 }
 
 @Composable
-private fun AnimatedHeart(
-    offset: Offset,
-    rotation: Float
-) {
+private fun AnimatedHeart(offset: Offset, rotation: Float) {
     val scale = remember { Animatable(0.2f) }
     val alpha = remember { Animatable(1f) }
     val offsetY = remember { Animatable(0f) }
-
     LaunchedEffect(Unit) {
-        launch {
-            scale.animateTo(
-                targetValue = 1.6f,
-                animationSpec = spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium)
-            )
-        }
-        launch {
-            offsetY.animateTo(-120f, animationSpec = spring(stiffness = Spring.StiffnessLow))
-        }
-        launch {
-            delay(400)
-            alpha.animateTo(0f, animationSpec = spring(stiffness = Spring.StiffnessVeryLow))
-        }
+        launch { scale.animateTo(1.6f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium)) }
+        launch { offsetY.animateTo(-120f, spring(stiffness = Spring.StiffnessLow)) }
+        launch { delay(400L); alpha.animateTo(0f, spring(stiffness = Spring.StiffnessVeryLow)) }
     }
-
-    Box(
-        modifier = Modifier
-            .offset {
-                IntOffset(
-                    x = (offset.x - 40f).roundToInt(),
-                    y = (offset.y - 40f + offsetY.value).roundToInt()
-                )
-            }
-            .scale(scale.value)
-    ) {
-        Icon(
-            imageVector = Icons.Default.Favorite,
-            contentDescription = "Liked",
-            tint = RubyRed.copy(alpha = alpha.value),
-            modifier = Modifier.size(64.dp)
-        )
+    Box(Modifier.offset { IntOffset((offset.x - 40f).roundToInt(), (offset.y - 40f + offsetY.value).roundToInt()) }.scale(scale.value)) {
+        Icon(Icons.Default.Favorite, contentDescription = "Liked", tint = RubyRed.copy(alpha = alpha.value), modifier = Modifier.size(64.dp))
     }
 }
