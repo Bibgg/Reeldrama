@@ -168,8 +168,8 @@ fun ReelDramaScreen(
                 DramaDetailsScreen(
                     drama = selectedDrama,
                     onBack = { selectedTab = 0 },
-                    onWatch = {
-                        viewModel.selectDrama(selectedDrama.id, 0)
+                    onWatch = { episodeIndex ->
+                        viewModel.selectDrama(selectedDrama.id, episodeIndex)
                         selectedTab = 1
                     }
                 )
