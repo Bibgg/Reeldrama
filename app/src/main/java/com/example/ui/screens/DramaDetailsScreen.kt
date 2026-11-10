@@ -103,6 +103,15 @@ fun DramaDetailsScreen(
             }
         }
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+            if (drama.tags.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                    drama.tags.take(4).forEach { tag ->
+                        Text(tag, color = Color.White.copy(alpha = 0.9f), fontSize = 10.sp,
+                            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(Color(0xFF292936)).padding(horizontal = 10.dp, vertical = 6.dp))
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
             Text("कहानी", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Text(drama.synopsis.ifBlank { "इस ड्रामा की कहानी जल्द उपलब्ध होगी।" }, color = TextSecondary, fontSize = 14.sp, lineHeight = 22.sp)
@@ -114,7 +123,7 @@ fun DramaDetailsScreen(
             } else {
                 drama.episodes.sortedBy { it.episodeNumber }.forEach { episode ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp).clip(RoundedCornerShape(10.dp)).background(if (selectedEpisodeIndex == drama.episodes.indexOf(episode)) Color(0xFF38202A) else Color(0xFF1B1B25)).clickable(enabled = episode.videoUrl.isNotBlank()) { selectedEpisodeIndex = drama.episodes.indexOf(episode) }.padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp).clip(RoundedCornerShape(10.dp)).background(if (selectedEpisodeIndex == drama.episodes.indexOf(episode)) Color(0xFF38202A) else Color(0xFF1B1B25)).clickable(enabled = episode.videoUrl.isNotBlank()) { onWatch(drama.episodes.indexOf(episode)) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF30303C)), contentAlignment = Alignment.Center) {
@@ -124,7 +133,7 @@ fun DramaDetailsScreen(
                             Text("Episode ${episode.episodeNumber}", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                             Text(episode.title, color = TextSecondary, fontSize = 11.sp, maxLines = 1)
                         }
-                        Text(if (episode.videoUrl.isNotBlank()) "Ready" else "Soon", color = if (episode.videoUrl.isNotBlank()) Color(0xFF65D69A) else TextSecondary, fontSize = 10.sp)
+                        Text(if (episode.videoUrl.isNotBlank()) "▶ Play" else "Unavailable", color = if (episode.videoUrl.isNotBlank()) Color(0xFF65D69A) else TextSecondary, fontSize = 10.sp)
                     }
                 }
             }
