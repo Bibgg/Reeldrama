@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,9 +44,12 @@ import com.example.ui.theme.TextSecondary
 fun DramaDetailsScreen(
     drama: DramaSeries,
     onBack: () -> Unit,
-    onWatch: () -> Unit
+    onWatch: (Int) -> Unit
 ) {
+    var selectedEpisodeIndex by androidx.compose.runtime.remember(drama.id) { androidx.compose.runtime.mutableIntStateOf(drama.episodes.indexOfFirst { it.videoUrl.isNotBlank() }.coerceAtLeast(0)) }
     val hasPlayableEpisode = drama.episodes.any { it.videoUrl.isNotBlank() }
+    val selectedEpisode = drama.episodes.getOrNull(selectedEpisodeIndex)
+    val canWatchSelectedEpisode = selectedEpisode?.videoUrl?.isNotBlank() == true
     Column(
         modifier = Modifier.fillMaxSize().background(OnyxBlack).verticalScroll(rememberScrollState())
     ) {
@@ -85,14 +89,14 @@ fun DramaDetailsScreen(
                 }
                 Spacer(Modifier.height(14.dp))
                 Button(
-                    onClick = onWatch,
-                    enabled = hasPlayableEpisode,
+                    onClick = { onWatch(selectedEpisodeIndex) },
+                    enabled = canWatchSelectedEpisode,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = RubyRed, disabledContainerColor = Color(0xFF393943)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Text(if (hasPlayableEpisode) "अभी देखें" else "एपिसोड जल्द उपलब्ध होंगे", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.Bold)
+                    Text(if (canWatchSelectedEpisode) "Episode ${selectedEpisode?.episodeNumber} अभी देखें" else "एपिसोड जल्द उपलब्ध होंगे", modifier = Modifier.padding(start = 8.dp), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -108,7 +112,7 @@ fun DramaDetailsScreen(
             } else {
                 drama.episodes.sortedBy { it.episodeNumber }.forEach { episode ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF1B1B25)).padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp).clip(RoundedCornerShape(10.dp)).background(if (selectedEpisodeIndex == drama.episodes.indexOf(episode)) Color(0xFF38202A) else Color(0xFF1B1B25)).clickable(enabled = episode.videoUrl.isNotBlank()) { selectedEpisodeIndex = drama.episodes.indexOf(episode) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(42.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF30303C)), contentAlignment = Alignment.Center) {
