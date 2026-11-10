@@ -127,6 +127,7 @@ dependencies {
   // implementation(libs.play.services.location)
   implementation(libs.retrofit)
   implementation(libs.media3.exoplayer)
+  implementation(libs.media3.exoplayer.hls)
   implementation(libs.media3.ui)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
