@@ -6,7 +6,6 @@ import com.example.data.DramaRepository
 import com.example.model.Comment
 import com.example.model.DramaSeries
 import com.example.model.Episode
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -27,7 +26,7 @@ enum class ActiveSheet {
 data class PlayerUiState(
     val currentDrama: DramaSeries,
     val currentEpisode: Episode,
-    val isPlaying: Boolean = true,
+    val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
     val currentPositionMs: Long = 0L,
     val durationMs: Long = 85000L,
@@ -36,7 +35,7 @@ data class PlayerUiState(
     val subtitlesEnabled: Boolean = true,
     val currentSubtitleText: String = "",
     val activeSheet: ActiveSheet = ActiveSheet.NONE,
-    val isBookmarked: Boolean = true,
+    val isBookmarked: Boolean = false,
     val availableDramas: List<DramaSeries> = emptyList(),
     val comments: List<Comment> = emptyList(),
     val backendUrl: String = ""
@@ -87,7 +86,7 @@ class ReelPlayerViewModel(
         refreshFromServer()
     }
 
-    /** सर्वर से ड्रामा दोबारा लाता है। सर्वर न मिले तो सैंपल डेटा चलता रहता है। */
+    /** सर्वर से ड्रामा दोबारा लाता है। सर्वर न मिले तो खाली कैटलॉग दिखता है। */
     fun refreshFromServer() {
         viewModelScope.launch {
             repository.refreshFromServer()
@@ -99,14 +98,14 @@ class ReelPlayerViewModel(
                         currentDrama = drama,
                         currentEpisode = episode,
                         currentPositionMs = 0L,
-                        isPlaying = true,
+                        isPlaying = episode.videoUrl.isNotBlank(),
                         isBookmarked = repository.bookmarkedSeriesIds.value.contains(drama.id),
                         comments = repository.getCommentsForEpisode(episode.id)
                     )
                     emitFeedback("Connected: $count series loaded from server")
                 }
                 .onFailure { error ->
-                    emitFeedback("Offline mode: ${error.message ?: "server unreachable"}. Showing sample dramas")
+                    emitFeedback("ड्रामा लोड नहीं हुए। इंटरनेट या सर्वर कनेक्शन जाँचें।")
                 }
         }
     }
@@ -149,16 +148,25 @@ class ReelPlayerViewModel(
         val nextIndex = repository.currentEpisodeIndex.value + 1
         if (nextIndex < currentDrama.episodes.size) {
             selectEpisode(nextIndex)
-        } else {
-            // Find next drama
-            val allDramas = repository.dramas.value
-            val currentDramaIndex = allDramas.indexOfFirst { it.id == currentDrama.id }
-            val nextDramaIndex = (currentDramaIndex + 1) % allDramas.size
-            selectDrama(allDramas[nextDramaIndex].id, 0)
-            emitFeedback("Starting next series: ${allDramas[nextDramaIndex].title}")
+            return
         }
+        val allDramas = repository.dramas.value
+        if (allDramas.isEmpty()) {
+            _uiState.value = _uiState.value.copy(isPlaying = false)
+            emitFeedback("अभी कोई ड्रामा उपलब्ध नहीं है।")
+            return
+        }
+        val currentIndex = allDramas.indexOfFirst { it.id == currentDrama.id }
+        val nextIndexInCatalog = if (currentIndex < 0) 0 else (currentIndex + 1) % allDramas.size
+        val nextDrama = allDramas[nextIndexInCatalog]
+        if (nextDrama.episodes.isEmpty()) {
+            _uiState.value = _uiState.value.copy(isPlaying = false)
+            emitFeedback("इस ड्रामा का एपिसोड अभी उपलब्ध नहीं है।")
+            return
+        }
+        selectDrama(nextDrama.id, 0)
+        emitFeedback("अगला ड्रामा: " + nextDrama.title)
     }
-
     fun prevEpisode() {
         val prevIndex = repository.currentEpisodeIndex.value - 1
         if (prevIndex >= 0) {
