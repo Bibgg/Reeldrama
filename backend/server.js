@@ -28,7 +28,8 @@ app.get('/', (req, res) => res.json({
     adminCreateDrama: 'POST /api/admin/dramas',
     adminCreateEpisode: 'POST /api/admin/episodes',
     adminUploadVideo: 'POST /api/admin/upload-video',
-    adminCatalogSearch: 'GET /api/admin/catalog/search?provider=dramabox&keyword=love'
+    adminCatalogSearch: 'GET /api/admin/catalog/search?provider=dramabox&keyword=love',
+    dramaBoxCatalog: '/api/catalog/dramabox/:endpoint (latest, trending, foryou, browse, dubbed, search, detail, allepisode, languages)'
   }
 }));
 
