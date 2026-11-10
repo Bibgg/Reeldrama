@@ -38,7 +38,7 @@ class DramaRepository {
     // Default fast public streaming CDN & Cloudinary video URLs
     private val videoStreamUrls = listOf(
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+        "https://res.cloudinary.com/rgsshthg/video/upload/v1794084108/Messenger_creation_2575CBA0-D92C-44F1-9E55-0D4795C49A72.mp4",
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4",
         "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
@@ -212,7 +212,7 @@ class DramaRepository {
                 episodeNumber = 2,
                 title = "Contract Marriage at Midnight",
                 videoUrl = videoStreamUrls[1],
-                durationSec = 95,
+                durationSec = 30,
                 introHook = "CEO Ethan Vance hands her a pen. 'Marry me for one year, and I'll crush your enemies.'",
                 likesCount = 52100L,
                 commentsCount = 4450L,
