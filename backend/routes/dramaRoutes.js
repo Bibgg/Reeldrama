@@ -246,7 +246,7 @@ router.get('/admin/providers/:provider/popular', requireAdmin, async (req, res) 
 router.get('/admin/providers/:provider/detail/:code', requireAdmin, async (req, res) => {
   const provider = String(req.params.provider || '').toLowerCase();
   const code = String(req.params.code || '');
-  if (provider !== 'shortmax' || !/^\\d{1,20}$/.test(code)) {
+  if (provider !== 'shortmax' || !/^\d{1,20}$/.test(code)) {
     return res.status(400).json({ success: false, message: 'ShortMax provider and a numeric drama code are required.' });
   }
   try {
@@ -263,7 +263,7 @@ router.get('/admin/providers/:provider/detail/:code', requireAdmin, async (req, 
 router.get('/admin/providers/:provider/episodes/:code', requireAdmin, async (req, res) => {
   const provider = String(req.params.provider || '').toLowerCase();
   const code = String(req.params.code || '');
-  if (provider !== 'shortmax' || !/^\\d{1,20}$/.test(code)) {
+  if (provider !== 'shortmax' || !/^\d{1,20}$/.test(code)) {
     return res.status(400).json({ success: false, message: 'ShortMax provider and a numeric drama code are required.' });
   }
   try {
@@ -297,7 +297,7 @@ router.get('/providers/shortmax/popular', async (req, res) => {
 
 router.get('/providers/shortmax/episodes/:code', async (req, res) => {
   const code = String(req.params.code || '');
-  if (!/^\\d{1,20}$/.test(code)) return res.status(400).json({ success: false, message: 'Invalid drama code.' });
+  if (!/^\d{1,20}$/.test(code)) return res.status(400).json({ success: false, message: 'Invalid drama code.' });
   try {
     const data = await callApiShort(`shortmax/api/v1/alleps/${code}`);
     res.set('Cache-Control', 'no-store');
