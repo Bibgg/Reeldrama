@@ -86,7 +86,7 @@ data class ShortMaxPopularPayload(val data: List<ShortMaxDramaDto> = emptyList()
 
 @JsonClass(generateAdapter = true)
 data class ShortMaxDramaDto(
-    val id: Long = 0L, val code: String = "", val name: String = "",
+    val id: Long = 0L, val code: Any? = null, val name: String = "",
     val cover: String = "", val episodes: Int = 0, val summary: String = "",
     val tags: List<String> = emptyList(), val views: Long = 0L, val favorites: Long = 0L
 )
