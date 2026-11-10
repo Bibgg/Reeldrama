@@ -52,6 +52,8 @@ const DramaSchema = new mongoose.Schema(
       type: String,
       default: '#7A1426'
     },
+    // Hidden from viewers until an admin verifies content rights and video sources.
+    isPublished: { type: Boolean, default: false, index: true },
     isTrending: {
       type: Boolean,
       default: true
