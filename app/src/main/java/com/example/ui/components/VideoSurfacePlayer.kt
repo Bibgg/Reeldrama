@@ -154,7 +154,6 @@ fun VideoSurfacePlayer(
                         useController = false
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         setShutterBackgroundColor(android.graphics.Color.BLACK)
-                        player = this@VideoSurfacePlayer.let { null }
                     }
                 },
                 update = { view -> view.player = player }
