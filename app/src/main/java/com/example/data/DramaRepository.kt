@@ -15,6 +15,51 @@ private fun formatShortMaxCount(value: Long): String = when {
     else -> value.toString()
 }
 
+private fun shortMaxMap(value: Any?): Map<*, *>? = value as? Map<*, *>
+
+private fun shortMaxList(value: Any?): List<Map<*, *>> {
+    if (value is List<*>) return value.mapNotNull { it as? Map<*, *> }
+    val map = shortMaxMap(value) ?: return emptyList()
+    for (key in listOf("data", "items", "list", "dramas", "results", "episodes", "records")) {
+        val child = map[key]
+        if (child is List<*>) return child.mapNotNull { it as? Map<*, *> }
+    }
+    for (key in listOf("data", "result", "payload")) {
+        val found = shortMaxList(map[key])
+        if (found.isNotEmpty()) return found
+    }
+    return emptyList()
+}
+
+private fun Map<*, *>.smText(vararg keys: String): String =
+    keys.firstNotNullOfOrNull { this[it]?.toString()?.takeIf(String::isNotBlank) }.orEmpty()
+
+private fun Map<*, *>.smLong(vararg keys: String): Long =
+    keys.firstNotNullOfOrNull { key ->
+        when (val value = this[key]) {
+            is Number -> value.toLong()
+            is String -> value.replace(",", "").trim().toLongOrNull()
+            else -> null
+        }
+    } ?: 0L
+
+private fun Map<*, *>.smTags(): List<String> {
+    val raw = this["tags"] ?: this["genres"] ?: this["tag"]
+    return when (raw) {
+        is List<*> -> raw.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+        is String -> raw.split(",", "|").map(String::trim).filter(String::isNotBlank)
+        else -> emptyList()
+    }
+}
+
+private fun Map<*, *>.smVideoUrl(): String {
+    val video = this["video"]
+    val videoMap = video as? Map<*, *>
+    return (video as? String)?.takeIf { it.startsWith("https://") }
+        ?: videoMap?.smText("video_1080", "video1080", "url_1080", "url", "playUrl", "video_720", "video720", "video_480", "video480")
+        ?: smText("video_1080", "video1080", "url_1080", "videoUrl", "video_url", "url")
+}
+
 class DramaRepository {
 
     companion object {
@@ -145,38 +190,38 @@ class DramaRepository {
                 .filter { it.episodes.isNotEmpty() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
-                api().getShortMaxPopular(lang = "id", page = 1).data?.data.orEmpty().take(12).mapNotNull { item ->
-                    val code = when (val rawCode = item.code) {
-                        is Number -> rawCode.toLong().toString()
-                        is String -> rawCode.trim()
-                        else -> ""
-                    }.takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
-                    val eps = api().getShortMaxEpisodes(code).data?.data?.episodes.orEmpty().mapNotNull { ep ->
-                        val videoUrl = ep.video?.video1080?.takeIf { it.startsWith("https://") }
-                            ?: ep.video?.video720?.takeIf { it.startsWith("https://") }
-                            ?: ep.video?.video480?.takeIf { it.startsWith("https://") }
+                shortMaxList(api().getShortMaxPopular(lang = "id", page = 1).data).take(12).mapNotNull { item ->
+                    val code = item.smText("code", "id", "dramaId", "drama_id")
+                        .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
+                    val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "image")
+                    val rawEpisodes = api().getShortMaxEpisodes(code).data
+                    val eps = shortMaxList(rawEpisodes).mapNotNull { ep ->
+                        val videoUrl = ep.smVideoUrl().takeIf { it.startsWith("https://") }
                             ?: return@mapNotNull null
+                        val episodeNo = ep.smLong("episode", "episodeNumber", "episode_number", "ep").toInt()
+                        if (episodeNo <= 0) return@mapNotNull null
                         Episode(
-                            id = "shortmax-" + code + "-" + ep.episode,
+                            id = "shortmax-" + code + "-" + episodeNo,
                             dramaId = "shortmax-" + code,
-                            episodeNumber = ep.episode,
-                            title = "Episode " + ep.episode,
+                            episodeNumber = episodeNo,
+                            title = ep.smText("title", "name").ifBlank { "Episode " + episodeNo },
                             videoUrl = videoUrl,
-                            durationSec = ep.duration.coerceAtLeast(1),
-                            thumbnailUrl = item.cover
+                            durationSec = ep.smLong("duration", "durationSec", "duration_sec").toInt().coerceAtLeast(1),
+                            thumbnailUrl = ep.smText("cover", "thumbnail", "thumbnailUrl", "thumbnail_url").ifBlank { cover }
                         )
                     }.sortedBy { it.episodeNumber }
                     if (eps.isEmpty()) return@mapNotNull null
+                    val tags = item.smTags()
                     DramaSeries(
                         id = "shortmax-" + code,
-                        title = item.name,
-                        synopsis = item.summary,
-                        genre = item.tags.firstOrNull().orEmpty(),
-                        tags = item.tags,
-                        totalEpisodes = maxOf(item.episodes, eps.size),
+                        title = item.smText("name", "title", "dramaName").ifBlank { "ShortMax " + code },
+                        synopsis = item.smText("summary", "description", "synopsis"),
+                        genre = tags.firstOrNull().orEmpty(),
+                        tags = tags,
+                        totalEpisodes = maxOf(item.smLong("episodes", "totalEpisodes", "episodeCount", "episode_count").toInt(), eps.size),
                         rating = 0f,
-                        viewsCountFormatted = formatShortMaxCount(item.views),
-                        coverImageUrl = item.cover,
+                        viewsCountFormatted = formatShortMaxCount(item.smLong("views", "viewCount", "view_count")),
+                        coverImageUrl = cover,
                         isTrending = true,
                         episodes = eps
                     )
