@@ -287,7 +287,9 @@ const SHORTMAX_STALE_MAX_MS = 48 * 60 * 60 * 1000;
 
 router.get('/providers/shortmax/popular', async (req, res) => {
   const lang = String(req.query.lang || 'id').toLowerCase();
-  const page = Math.max(1, Math.min(1000, Number.parseInt(req.query.page || '1', 10) || 1));
+  // Older installed APKs request five pages on every refresh. Until explicit
+  // pagination is added, serve the cached first page for every requested page.
+  const page = 1;
   if (!/^[a-z]{2,5}(_[a-z]{2})?$/.test(lang)) {
     return res.status(400).json({ success: false, message: 'Invalid language code.' });
   }
