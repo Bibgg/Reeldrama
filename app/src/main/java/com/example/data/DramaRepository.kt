@@ -278,7 +278,9 @@ class DramaRepository {
                 // again on every app refresh rather than persisting stale links in MongoDB.
                 val allCatalogueItems = mutableListOf<Map<*, *>>()
                 val seenSeriesCodes = mutableSetOf<String>()
-                for (page in 1..100) {
+                // Load a small first batch quickly; more catalogue pagination can be added
+                // without blocking the first screen on dozens of network requests.
+                for (page in 1..5) {
                     val pageItems = shortMaxList(api().getShortMaxPopular(lang = "en", page = page).data)
                     if (pageItems.isEmpty()) break
                     var addedOnPage = 0
@@ -298,26 +300,9 @@ class DramaRepository {
                     val code = item.smIdentifier("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
                     val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
-                    // A single unavailable/slow series must not fail the entire catalogue refresh.
-                    // Keep the series visible; retry its episode request on the next refresh.
-                    val rawEpisodes = runCatching {
-                        api().getShortMaxEpisodes(code).data
-                    }.getOrNull()
-                    val eps = shortMaxList(rawEpisodes).mapNotNull { ep ->
-                        val videoUrl = ep.smVideoUrl().takeIf { it.startsWith("https://") }
-                            ?: return@mapNotNull null
-                        val episodeNo = ep.smLong("episode", "episodeNumber", "episode_number", "ep", "chapter", "chapterNo", "chapter_no").toInt()
-                        if (episodeNo <= 0) return@mapNotNull null
-                        Episode(
-                            id = "shortmax-" + code + "-" + episodeNo,
-                            dramaId = "shortmax-" + code,
-                            episodeNumber = episodeNo,
-                            title = ep.smText("title", "name", "episodeTitle", "episode_title", "chapterName").ifBlank { "Episode " + episodeNo },
-                            videoUrl = videoUrl,
-                            durationSec = ep.smLong("duration", "durationSec", "duration_sec", "durationSeconds", "duration_seconds").toInt().coerceAtLeast(1),
-                            thumbnailUrl = ep.smText("cover", "thumbnail", "thumbnailUrl", "thumbnail_url").ifBlank { cover }
-                        )
-                    }.sortedBy { it.episodeNumber }
+                    // Keep catalogue metadata independent from playback URL requests.
+                    // Signed episode URLs are fetched only when the user opens a series.
+                    val eps = emptyList<Episode>()
                     val tags = item.smTags()
                     DramaSeries(
                         id = "shortmax-" + code,
@@ -339,6 +324,39 @@ class DramaRepository {
             _currentDramaId.value = remote.firstOrNull()?.id.orEmpty()
             _currentEpisodeIndex.value = 0
             remote.size
+        }
+    }
+
+    /**
+     * Fetch fresh, signed playback URLs only when a user opens a ShortMax series.
+     * This keeps the home catalogue fast and avoids one network request per poster.
+     */
+    suspend fun loadEpisodesForDrama(dramaId: String): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            require(dramaId.startsWith("shortmax-")) { "Unsupported drama source" }
+            val code = dramaId.removePrefix("shortmax-")
+            require(code.matches(Regex("^[0-9]{1,20}$"))) { "Invalid ShortMax drama code" }
+            val rawEpisodes = api().getShortMaxEpisodes(code).data
+            val cover = _dramas.value.firstOrNull { it.id == dramaId }?.coverImageUrl.orEmpty()
+            val episodes = shortMaxList(rawEpisodes).mapNotNull { ep ->
+                val videoUrl = ep.smVideoUrl().takeIf { it.startsWith("https://") }
+                    ?: return@mapNotNull null
+                val episodeNo = ep.smLong("episode", "episodeNumber", "episode_number", "ep", "chapter", "chapterNo", "chapter_no").toInt()
+                if (episodeNo <= 0) return@mapNotNull null
+                Episode(
+                    id = "shortmax-" + code + "-" + episodeNo,
+                    dramaId = dramaId,
+                    episodeNumber = episodeNo,
+                    title = ep.smText("title", "name", "episodeTitle", "episode_title", "chapterName").ifBlank { "Episode " + episodeNo },
+                    videoUrl = videoUrl,
+                    durationSec = ep.smLong("duration", "durationSec", "duration_sec", "durationSeconds", "duration_seconds").toInt().coerceAtLeast(1),
+                    thumbnailUrl = ep.smText("cover", "thumbnail", "thumbnailUrl", "thumbnail_url").ifBlank { cover }
+                )
+            }.sortedBy { it.episodeNumber }
+            _dramas.value = _dramas.value.map { drama ->
+                if (drama.id == dramaId) drama.copy(episodes = episodes) else drama
+            }
+            episodes.size
         }
     }
 
