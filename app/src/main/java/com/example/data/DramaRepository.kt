@@ -25,7 +25,7 @@ private val shortMaxRecordKeys = setOf(
 )
 
 private fun Map<*, *>.looksLikeShortMaxRecord(): Boolean =
-    keys.any { it?.toString()?.lowercase(java.util.Locale.ROOT) in shortMaxRecordKeys }
+    keys.any { key -> key?.toString()?.lowercase(java.util.Locale.ROOT)?.let { it in shortMaxRecordKeys } == true }
 
 private fun shortMaxList(value: Any?, depth: Int = 0): List<Map<*, *>> {
     if (depth > 7 || value == null) return emptyList()
