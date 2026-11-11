@@ -42,6 +42,16 @@ private fun shortMaxList(value: Any?, depth: Int = 0): List<Map<*, *>> {
     }
 
     val map = shortMaxMap(value) ?: return emptyList()
+
+    // ShortMax /alleps wraps the episode array in a drama object:
+    // { code, cover, episodes: [...] }. Do not mistake that wrapper for
+    // a single episode merely because it also contains a "code" field.
+    val nestedEpisodes = map["episodes"] as? List<*>
+    if (nestedEpisodes != null) {
+        val found = shortMaxList(nestedEpisodes, depth + 1)
+        if (found.isNotEmpty()) return found
+    }
+
     if (map.looksLikeShortMaxRecord()) return listOf(map)
 
     // Provider responses are not always wrapped in the same object. Check common
@@ -221,7 +231,7 @@ class DramaRepository {
                 .filter { it.episodes.isNotEmpty() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
-                shortMaxList(api().getShortMaxPopular(lang = "id", page = 1).data).take(12).mapNotNull { item ->
+                shortMaxList(api().getShortMaxPopular(lang = "hi", page = 1).data).take(12).mapNotNull { item ->
                     val code = item.smText("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
                     val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
