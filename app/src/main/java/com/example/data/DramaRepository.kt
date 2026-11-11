@@ -17,15 +17,31 @@ private fun formatShortMaxCount(value: Long): String = when {
 
 private fun shortMaxMap(value: Any?): Map<*, *>? = value as? Map<*, *>
 
-private fun shortMaxList(value: Any?): List<Map<*, *>> {
-    if (value is List<*>) return value.mapNotNull { it as? Map<*, *> }
-    val map = shortMaxMap(value) ?: return emptyList()
-    for (key in listOf("data", "items", "list", "dramas", "results", "episodes", "records")) {
-        val child = map[key]
-        if (child is List<*>) return child.mapNotNull { it as? Map<*, *> }
+private fun shortMaxList(value: Any?, depth: Int = 0): List<Map<*, *>> {
+    if (depth > 7 || value == null) return emptyList()
+
+    if (value is List<*>) {
+        val direct = value.mapNotNull { it as? Map<*, *> }
+        if (direct.isNotEmpty()) return direct
+        return value.firstNotNullOfOrNull { child ->
+            shortMaxList(child, depth + 1).takeIf { it.isNotEmpty() }
+        } ?: emptyList()
     }
-    for (key in listOf("data", "result", "payload")) {
-        val found = shortMaxList(map[key])
+
+    val map = shortMaxMap(value) ?: return emptyList()
+    // Provider responses are not always wrapped in the same object. Check common
+    // catalogue keys first, then recursively inspect nested response objects.
+    val preferredKeys = listOf(
+        "data", "items", "list", "dramas", "results", "episodes", "records",
+        "rankList", "rankingList", "popularList", "recommendList", "bookList",
+        "videoList", "rows", "content", "result", "payload", "homeData"
+    )
+    for (key in preferredKeys) {
+        val found = shortMaxList(map[key], depth + 1)
+        if (found.isNotEmpty()) return found
+    }
+    for (child in map.values) {
+        val found = shortMaxList(child, depth + 1)
         if (found.isNotEmpty()) return found
     }
     return emptyList()
@@ -191,22 +207,22 @@ class DramaRepository {
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
                 shortMaxList(api().getShortMaxPopular(lang = "id", page = 1).data).take(12).mapNotNull { item ->
-                    val code = item.smText("code", "id", "dramaId", "drama_id")
+                    val code = item.smText("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
-                    val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "image")
+                    val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
                     val rawEpisodes = api().getShortMaxEpisodes(code).data
                     val eps = shortMaxList(rawEpisodes).mapNotNull { ep ->
                         val videoUrl = ep.smVideoUrl().takeIf { it.startsWith("https://") }
                             ?: return@mapNotNull null
-                        val episodeNo = ep.smLong("episode", "episodeNumber", "episode_number", "ep").toInt()
+                        val episodeNo = ep.smLong("episode", "episodeNumber", "episode_number", "ep", "chapter", "chapterNo", "chapter_no").toInt()
                         if (episodeNo <= 0) return@mapNotNull null
                         Episode(
                             id = "shortmax-" + code + "-" + episodeNo,
                             dramaId = "shortmax-" + code,
                             episodeNumber = episodeNo,
-                            title = ep.smText("title", "name").ifBlank { "Episode " + episodeNo },
+                            title = ep.smText("title", "name", "episodeTitle", "episode_title", "chapterName").ifBlank { "Episode " + episodeNo },
                             videoUrl = videoUrl,
-                            durationSec = ep.smLong("duration", "durationSec", "duration_sec").toInt().coerceAtLeast(1),
+                            durationSec = ep.smLong("duration", "durationSec", "duration_sec", "durationSeconds", "duration_seconds").toInt().coerceAtLeast(1),
                             thumbnailUrl = ep.smText("cover", "thumbnail", "thumbnailUrl", "thumbnail_url").ifBlank { cover }
                         )
                     }.sortedBy { it.episodeNumber }
@@ -214,13 +230,13 @@ class DramaRepository {
                     val tags = item.smTags()
                     DramaSeries(
                         id = "shortmax-" + code,
-                        title = item.smText("name", "title", "dramaName").ifBlank { "ShortMax " + code },
-                        synopsis = item.smText("summary", "description", "synopsis"),
+                        title = item.smText("name", "title", "dramaName", "drama_name", "bookName", "book_name", "seriesName").ifBlank { "ShortMax " + code },
+                        synopsis = item.smText("summary", "description", "synopsis", "intro", "desc"),
                         genre = tags.firstOrNull().orEmpty(),
                         tags = tags,
-                        totalEpisodes = maxOf(item.smLong("episodes", "totalEpisodes", "episodeCount", "episode_count").toInt(), eps.size),
+                        totalEpisodes = maxOf(item.smLong("episodes", "totalEpisodes", "episodeCount", "episode_count", "chapterCount", "chapter_count", "totalEpisode", "epCount").toInt(), eps.size),
                         rating = 0f,
-                        viewsCountFormatted = formatShortMaxCount(item.smLong("views", "viewCount", "view_count")),
+                        viewsCountFormatted = formatShortMaxCount(item.smLong("views", "viewCount", "view_count", "playCount", "play_count")),
                         coverImageUrl = cover,
                         isTrending = true,
                         episodes = eps
