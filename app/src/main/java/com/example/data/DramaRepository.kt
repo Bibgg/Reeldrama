@@ -130,7 +130,7 @@ private fun smFindVideoUrl(value: Any?, depth: Int = 0): String {
     }
     for ((key, value) in map) {
         if (key?.toString()?.lowercase(java.util.Locale.ROOT) in setOf("video", "videos", "play", "playinfo", "video_info", "videoinfo", "sources", "qualities", "data")) {
-            val found = value.smFindVideoUrl(depth + 1)
+            val found = smFindVideoUrl(value, depth + 1)
             if (found.isNotBlank()) return found
         }
     }
