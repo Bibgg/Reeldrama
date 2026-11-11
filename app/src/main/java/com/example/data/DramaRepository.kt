@@ -17,18 +17,33 @@ private fun formatShortMaxCount(value: Long): String = when {
 
 private fun shortMaxMap(value: Any?): Map<*, *>? = value as? Map<*, *>
 
+private val shortMaxRecordKeys = setOf(
+    "id", "code", "dramaid", "drama_id", "bookid", "book_id",
+    "seriesid", "series_id", "shortplayid", "shortplay_id", "vid",
+    "episode", "episodenumber", "episode_number", "chapter", "chapterno",
+    "chapter_no", "videourl", "video_url", "playurl", "play_url", "video"
+)
+
+private fun Map<*, *>.looksLikeShortMaxRecord(): Boolean =
+    keys.any { it?.toString()?.lowercase(java.util.Locale.ROOT) in shortMaxRecordKeys }
+
 private fun shortMaxList(value: Any?, depth: Int = 0): List<Map<*, *>> {
     if (depth > 7 || value == null) return emptyList()
 
     if (value is List<*>) {
-        val direct = value.mapNotNull { it as? Map<*, *> }
-        if (direct.isNotEmpty()) return direct
-        return value.firstNotNullOfOrNull { child ->
-            shortMaxList(child, depth + 1).takeIf { it.isNotEmpty() }
-        } ?: emptyList()
+        val maps = value.mapNotNull { it as? Map<*, *> }
+        val records = maps.filter { it.looksLikeShortMaxRecord() }
+        if (records.isNotEmpty()) return records
+        for (child in value) {
+            val found = shortMaxList(child, depth + 1)
+            if (found.isNotEmpty()) return found
+        }
+        return emptyList()
     }
 
     val map = shortMaxMap(value) ?: return emptyList()
+    if (map.looksLikeShortMaxRecord()) return listOf(map)
+
     // Provider responses are not always wrapped in the same object. Check common
     // catalogue keys first, then recursively inspect nested response objects.
     val preferredKeys = listOf(
