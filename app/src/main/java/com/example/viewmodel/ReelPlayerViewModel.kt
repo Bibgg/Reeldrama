@@ -112,6 +112,22 @@ class ReelPlayerViewModel(
         }
     }
 
+    /** Load ShortMax episode URLs as soon as the user opens the drama details page. */
+    fun preloadEpisodes(dramaId: String) {
+        val drama = repository.dramas.value.firstOrNull { it.id == dramaId } ?: return
+        if (!dramaId.startsWith("shortmax-") || drama.episodes.isNotEmpty()) return
+        viewModelScope.launch {
+            repository.loadEpisodesForDrama(dramaId)
+                .onSuccess { count ->
+                    if (count > 0) emitFeedback("$count एपिसोड लोड हुए")
+                    else emitFeedback("इस ड्रामा के वीडियो एपिसोड अभी उपलब्ध नहीं हैं।")
+                }
+                .onFailure { error ->
+                    emitFeedback("एपिसोड लोड नहीं हुए: " + (error.message ?: error.javaClass.simpleName).take(120))
+                }
+        }
+    }
+
     fun selectDrama(dramaId: String, startEpisodeIndex: Int = 0) {
         repository.setCurrentDrama(dramaId, startEpisodeIndex)
         val selected = repository.getCurrentDrama()
