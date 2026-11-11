@@ -137,7 +137,7 @@ private fun Any?.smFindVideoUrl(depth: Int = 0): String {
     return ""
 }
 
-private fun Map<*, *>.smVideoUrl(): String = smFindVideoUrl(this)
+private fun Map<*, *>.smVideoUrl(): String = this.smFindVideoUrl()
 
 class DramaRepository {
 
