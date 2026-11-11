@@ -294,7 +294,11 @@ class DramaRepository {
                     val code = item.smIdentifier("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
                     val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
-                    val rawEpisodes = api().getShortMaxEpisodes(code).data
+                    // A single unavailable/slow series must not fail the entire catalogue refresh.
+                    // Keep the series visible; retry its episode request on the next refresh.
+                    val rawEpisodes = runCatching {
+                        api().getShortMaxEpisodes(code).data
+                    }.getOrNull()
                     val eps = shortMaxList(rawEpisodes).mapNotNull { ep ->
                         val videoUrl = ep.smVideoUrl().takeIf { it.startsWith("https://") }
                             ?: return@mapNotNull null
