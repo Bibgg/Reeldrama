@@ -159,6 +159,8 @@ fun ReelDramaScreen(
                 onPlayDrama = { dramaId ->
                     selectedDramaId = dramaId
                     selectedTab = 2
+                    // Load episodes on the details page; the Watch button depends on them.
+                    viewModel.preloadEpisodes(dramaId)
                 },
                 onBrowseAll = { viewModel.setActiveSheet(ActiveSheet.SERIES_BROWSER) }
             )
