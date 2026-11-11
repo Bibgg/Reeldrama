@@ -105,7 +105,9 @@ class ReelPlayerViewModel(
                     emitFeedback("Connected: $count series loaded from server")
                 }
                 .onFailure { error ->
-                    emitFeedback("ड्रामा लोड नहीं हुए। इंटरनेट या सर्वर कनेक्शन जाँचें।")
+                    // Show the actual API/JSON/network failure instead of a misleading generic message.
+                    val reason = (error.message ?: error.javaClass.simpleName).take(140)
+                    emitFeedback("ड्रामा लोड नहीं हुए: $reason")
                 }
         }
     }
