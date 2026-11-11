@@ -288,6 +288,22 @@ router.get('/providers/shortmax/popular', async (req, res) => {
   }
   try {
     const data = await callApiShort('shortmax/api/v1/popular', { lang, page });
+    // Temporary shape-only diagnostic: log field names, never provider data or signed URLs.
+    const shapeOf = (value, depth = 0) => {
+      if (depth > 4 || value == null) return Array.isArray(value) ? 'array' : typeof value;
+      if (Array.isArray(value)) return { type: 'array', length: value.length, first: value.length ? shapeOf(value[0], depth + 1) : null };
+      if (typeof value === 'object') {
+        const keys = Object.keys(value);
+        const sample = {};
+        for (const key of keys.slice(0, 30)) {
+          const child = value[key];
+          sample[key] = child && typeof child === 'object' ? shapeOf(child, depth + 1) : typeof child;
+        }
+        return { type: 'object', keys, sample };
+      }
+      return typeof value;
+    };
+    console.log('[ShortMax catalog shape]', JSON.stringify(shapeOf(data)));
     res.set('Cache-Control', 'private, max-age=60');
     return res.json({ success: true, provider: 'shortmax', lang, page, data });
   } catch (error) {
