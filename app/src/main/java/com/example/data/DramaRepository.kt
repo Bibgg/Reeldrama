@@ -75,6 +75,21 @@ private fun shortMaxList(value: Any?, depth: Int = 0): List<Map<*, *>> {
 private fun Map<*, *>.smText(vararg keys: String): String =
     keys.firstNotNullOfOrNull { this[it]?.toString()?.takeIf(String::isNotBlank) }.orEmpty()
 
+// Moshi may decode untyped JSON numbers as Double (for example 731245.0).
+// Provider IDs are integer identifiers, so normalize them before URL validation.
+private fun Map<*, *>.smIdentifier(vararg keys: String): String =
+    keys.firstNotNullOfOrNull { key ->
+        when (val value = this[key]) {
+            is Number -> {
+                val number = value.toDouble()
+                if (number.isFinite() && number % 1.0 == 0.0) number.toLong().toString()
+                else value.toString()
+            }
+            is String -> value.takeIf(String::isNotBlank)
+            else -> null
+        }
+    }.orEmpty()
+
 private fun Map<*, *>.smLong(vararg keys: String): Long =
     keys.firstNotNullOfOrNull { key ->
         when (val value = this[key]) {
@@ -232,7 +247,7 @@ class DramaRepository {
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
                 shortMaxList(api().getShortMaxPopular(lang = "hi", page = 1).data).take(12).mapNotNull { item ->
-                    val code = item.smText("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
+                    val code = item.smIdentifier("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
                     val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
                     val rawEpisodes = api().getShortMaxEpisodes(code).data
