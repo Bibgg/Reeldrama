@@ -279,14 +279,12 @@ class DramaRepository {
             }.getOrElse { emptyList() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
-                // Read every available catalogue page instead of silently truncating at 12.
-                // The provider returns expiring episode playback URLs, so episodes are fetched
-                // again on every app refresh rather than persisting stale links in MongoDB.
+                // Request only the first catalogue page on app refresh. The provider may
+                // enforce a strict quota; backend caching serves this page to all app users.
+                // More pages can be loaded later through an explicit pagination action.
                 val allCatalogueItems = mutableListOf<Map<*, *>>()
                 val seenSeriesCodes = mutableSetOf<String>()
-                // Load a small first batch quickly; more catalogue pagination can be added
-                // without blocking the first screen on dozens of network requests.
-                for (page in 1..5) {
+                for (page in 1..1) {
                     val pageItems = shortMaxList(api().getShortMaxPopular(lang = "en", page = page).data)
                     if (pageItems.isEmpty()) break
                     var addedOnPage = 0
