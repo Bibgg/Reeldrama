@@ -264,9 +264,13 @@ class DramaRepository {
             require(base.isNotBlank() && !base.contains("example.com")) {
                 "Backend URL not set"
             }
-            val remoteMongo = api().getDramas().data
-                .map { it.toDomain() }
-                .filter { it.episodes.isNotEmpty() }
+            // MongoDB catalog is optional. If its endpoint is empty OR temporarily fails,
+            // continue to the live provider catalog instead of aborting the whole refresh.
+            val remoteMongo = runCatching {
+                api().getDramas().data
+                    .map { it.toDomain() }
+                    .filter { it.episodes.isNotEmpty() }
+            }.getOrElse { emptyList() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
                 // Read every available catalogue page instead of silently truncating at 12.
