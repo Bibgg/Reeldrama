@@ -108,16 +108,16 @@ private fun Map<*, *>.smTags(): List<String> {
     }
 }
 
-private fun Any?.smFindVideoUrl(depth: Int = 0): String {
-    if (depth > 6 || this == null) return ""
-    if (this is String) {
-        val candidate = trim()
+private fun smFindVideoUrl(value: Any?, depth: Int = 0): String {
+    if (depth > 6 || value == null) return ""
+    if (value is String) {
+        val candidate = value.trim()
         return candidate.takeIf { it.startsWith("https://") || it.startsWith("http://") }.orEmpty()
     }
-    if (this is List<*>) {
-        return firstNotNullOfOrNull { it.smFindVideoUrl(depth + 1).takeIf(String::isNotBlank) }.orEmpty()
+    if (value is List<*>) {
+        return value.firstNotNullOfOrNull { smFindVideoUrl(it, depth + 1).takeIf(String::isNotBlank) }.orEmpty()
     }
-    val map = this as? Map<*, *> ?: return ""
+    val map = value as? Map<*, *> ?: return ""
     val preferred = listOf(
         "video_1080", "video1080", "url_1080", "play_url", "playUrl",
         "video_url", "videoUrl", "url", "video_720", "video720",
@@ -125,7 +125,7 @@ private fun Any?.smFindVideoUrl(depth: Int = 0): String {
     )
     for (key in preferred) {
         val value = map.entries.firstOrNull { it.key?.toString()?.equals(key, ignoreCase = true) == true }?.value
-        val found = value.smFindVideoUrl(depth + 1)
+        val found = smFindVideoUrl(value, depth + 1)
         if (found.isNotBlank()) return found
     }
     for ((key, value) in map) {
@@ -137,7 +137,7 @@ private fun Any?.smFindVideoUrl(depth: Int = 0): String {
     return ""
 }
 
-private fun Map<*, *>.smVideoUrl(): String = this.smFindVideoUrl()
+private fun Map<*, *>.smVideoUrl(): String = smFindVideoUrl(this)
 
 class DramaRepository {
 
