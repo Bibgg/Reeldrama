@@ -108,13 +108,36 @@ private fun Map<*, *>.smTags(): List<String> {
     }
 }
 
-private fun Map<*, *>.smVideoUrl(): String {
-    val video = this["video"]
-    val videoMap = video as? Map<*, *>
-    return (video as? String)?.takeIf { it.startsWith("https://") }
-        ?: videoMap?.smText("video_1080", "video1080", "url_1080", "url", "playUrl", "video_720", "video720", "video_480", "video480")
-        ?: smText("video_1080", "video1080", "url_1080", "videoUrl", "video_url", "url")
+private fun Any?.smFindVideoUrl(depth: Int = 0): String {
+    if (depth > 6 || this == null) return ""
+    if (this is String) {
+        val candidate = trim()
+        return candidate.takeIf { it.startsWith("https://") || it.startsWith("http://") }.orEmpty()
+    }
+    if (this is List<*>) {
+        return firstNotNullOfOrNull { it.smFindVideoUrl(depth + 1).takeIf(String::isNotBlank) }.orEmpty()
+    }
+    val map = this as? Map<*, *> ?: return ""
+    val preferred = listOf(
+        "video_1080", "video1080", "url_1080", "play_url", "playUrl",
+        "video_url", "videoUrl", "url", "video_720", "video720",
+        "video_480", "video480", "m3u8", "hls", "src"
+    )
+    for (key in preferred) {
+        val value = map.entries.firstOrNull { it.key?.toString()?.equals(key, ignoreCase = true) == true }?.value
+        val found = value.smFindVideoUrl(depth + 1)
+        if (found.isNotBlank()) return found
+    }
+    for ((key, value) in map) {
+        if (key?.toString()?.lowercase(java.util.Locale.ROOT) in setOf("video", "videos", "play", "playinfo", "video_info", "videoinfo", "sources", "qualities", "data")) {
+            val found = value.smFindVideoUrl(depth + 1)
+            if (found.isNotBlank()) return found
+        }
+    }
+    return ""
 }
+
+private fun Map<*, *>.smVideoUrl(): String = smFindVideoUrl(this)
 
 class DramaRepository {
 
@@ -231,9 +254,9 @@ class DramaRepository {
     }
 
     /**
-     * सर्वर से ड्रामा + एपिसोड लाकर लिस्ट बदल देता है।
-     * सर्वर न मिले, या वहाँ डेटा खाली हो, तो पुराना (सैंपल) डेटा वैसा ही रहता है और Failure लौटता है।
-     * सफल होने पर कितने ड्रामा आए, वह गिनती लौटाता है।
+     * सर्वर से पूरा ShortMax catalogue और हर series के सभी playable episodes लाकर लिस्ट बदलता है।
+     * भाषा catalogue metadata की पसंद है; एपिसोड वीडियो URL provider से ताज़ा माँगे जाते हैं।
+     * सफल होने पर लोड हुई series की संख्या लौटाता है।
      */
     suspend fun refreshFromServer(): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
@@ -246,7 +269,28 @@ class DramaRepository {
                 .filter { it.episodes.isNotEmpty() }
             // Prefer admin-published MongoDB content; use ShortMax as catalogue fallback.
             val remote = if (remoteMongo.isNotEmpty()) remoteMongo else {
-                shortMaxList(api().getShortMaxPopular(lang = "hi", page = 1).data).take(12).mapNotNull { item ->
+                // Read every available catalogue page instead of silently truncating at 12.
+                // The provider returns expiring episode playback URLs, so episodes are fetched
+                // again on every app refresh rather than persisting stale links in MongoDB.
+                val allCatalogueItems = mutableListOf<Map<*, *>>()
+                val seenSeriesCodes = mutableSetOf<String>()
+                for (page in 1..100) {
+                    val pageItems = shortMaxList(api().getShortMaxPopular(lang = "en", page = page).data)
+                    if (pageItems.isEmpty()) break
+                    var addedOnPage = 0
+                    for (candidate in pageItems) {
+                        val candidateCode = candidate.smIdentifier(
+                            "code", "id", "dramaId", "drama_id", "bookId", "book_id",
+                            "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid"
+                        ).takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: continue
+                        if (seenSeriesCodes.add(candidateCode)) {
+                            allCatalogueItems.add(candidate)
+                            addedOnPage++
+                        }
+                    }
+                    if (addedOnPage == 0) break
+                }
+                allCatalogueItems.mapNotNull { item ->
                     val code = item.smIdentifier("code", "id", "dramaId", "drama_id", "bookId", "book_id", "seriesId", "series_id", "shortPlayId", "shortplay_id", "vid")
                         .takeIf { it.matches(Regex("^[0-9]{1,20}$")) } ?: return@mapNotNull null
                     val cover = item.smText("cover", "coverUrl", "cover_url", "poster", "posterUrl", "poster_url", "image", "imageUrl", "thumb", "thumbnail")
@@ -266,7 +310,6 @@ class DramaRepository {
                             thumbnailUrl = ep.smText("cover", "thumbnail", "thumbnailUrl", "thumbnail_url").ifBlank { cover }
                         )
                     }.sortedBy { it.episodeNumber }
-                    if (eps.isEmpty()) return@mapNotNull null
                     val tags = item.smTags()
                     DramaSeries(
                         id = "shortmax-" + code,
