@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,8 +34,10 @@ import androidx.compose.material3.FilterChip
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,12 +49,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.example.model.DramaSeries
 import com.example.ui.components.VideoSurfacePlayer
 import com.example.ui.theme.OnyxBlack
 import com.example.ui.theme.RubyRed
 import com.example.ui.theme.TextSecondary
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ReelDramaHomeScreen(
     dramas: List<DramaSeries>,
@@ -69,8 +76,21 @@ fun ReelDramaHomeScreen(
         matchesSearch && matchesGenre
     }
     val featured = visibleDramas.firstOrNull { it.isTrending } ?: visibleDramas.firstOrNull()
-    val previewEpisode = featured?.episodes?.firstOrNull()
-    var previewIsPlaying by remember(previewEpisode?.videoUrl) { mutableStateOf(true) }
+    // PLAYING NOW is a horizontal autoplay feed made only from real, playable episodes.
+    // Trending series are placed first; episodes within each series keep episode-number order.
+    val featuredFeed = remember(visibleDramas) {
+        visibleDramas
+            .sortedByDescending { it.isTrending }
+            .flatMap { drama ->
+                drama.episodes
+                    .filter { it.videoUrl.isNotBlank() }
+                    .sortedBy { it.episodeNumber }
+                    .map { episode -> drama to episode }
+            }
+    }
+    val feedPagerState = rememberPagerState(pageCount = { featuredFeed.size })
+    val feedScope = rememberCoroutineScope()
+    var playingNowIsPlaying by remember { mutableStateOf(true) }
 
     LazyColumn(
         modifier = Modifier
@@ -135,51 +155,82 @@ fun ReelDramaHomeScreen(
             }
         }
 
-        if (featured != null && previewEpisode != null) {
+        if (featuredFeed.isNotEmpty()) {
             item {
                 Column(Modifier.padding(horizontal = 16.dp)) {
+                    val currentEntry = featuredFeed.getOrNull(feedPagerState.currentPage)
                     Text(
-                        "PLAYING NOW  •  EPISODE 1",
+                        "PLAYING NOW  •  ${feedPagerState.currentPage + 1} / ${featuredFeed.size}",
                         color = RubyRed,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(start = 4.dp, bottom = 9.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(230.dp)
-                            .clip(RoundedCornerShape(18.dp))
-                    ) {
-                        VideoSurfacePlayer(
-                            videoUrl = previewEpisode.videoUrl,
-                            isPlaying = previewIsPlaying,
-                            isMuted = true,
-                            playbackSpeed = 1f,
-                            onProgressUpdate = { _, _ -> },
-                            onTogglePlayPause = { previewIsPlaying = !previewIsPlaying },
-                            onSingleTap = { previewIsPlaying = !previewIsPlaying },
-                            onDoubleTapHeart = { _, _ -> },
-                            onVideoCompleted = { previewIsPlaying = false },
-                            modifier = Modifier.fillMaxWidth().height(230.dp)
-                        )
+                    HorizontalPager(
+                        state = feedPagerState,
+                        modifier = Modifier.fillMaxWidth(),
+                        key = { page -> featuredFeed[page].second.id }
+                    ) { page ->
+                        val (pageDrama, pageEpisode) = featuredFeed[page]
+                        val isCurrentPage = page == feedPagerState.currentPage
+                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(230.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                            ) {
+                                VideoSurfacePlayer(
+                                    videoUrl = pageEpisode.videoUrl,
+                                    isPlaying = isCurrentPage && playingNowIsPlaying,
+                                    isMuted = true,
+                                    playbackSpeed = 1f,
+                                    onProgressUpdate = { _, _ -> },
+                                    onTogglePlayPause = {
+                                        if (isCurrentPage) playingNowIsPlaying = !playingNowIsPlaying
+                                    },
+                                    onSingleTap = {
+                                        if (isCurrentPage) playingNowIsPlaying = !playingNowIsPlaying
+                                    },
+                                    onDoubleTapHeart = { _, _ -> },
+                                    onVideoCompleted = {
+                                        if (isCurrentPage && featuredFeed.isNotEmpty()) {
+                                            feedScope.launch {
+                                                val nextPage = (feedPagerState.currentPage + 1) % featuredFeed.size
+                                                playingNowIsPlaying = true
+                                                feedPagerState.animateScrollToPage(nextPage)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(230.dp)
+                                )
+                            }
+                            Text(
+                                "${pageDrama.title}  •  Episode ${pageEpisode.episodeNumber}",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 9.dp, start = 3.dp)
+                            )
+                            Button(
+                                onClick = { onPlayDrama(pageDrama.id) },
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RubyRed),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(Modifier.width(6.dp))
+                                Text("Watch full series", fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
-                    Text(
-                        featured.title + "  •  " + previewEpisode.title,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 9.dp, start = 3.dp)
-                    )
-                    Button(
-                        onClick = { onPlayDrama(featured.id) },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RubyRed),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Watch full episode", fontWeight = FontWeight.Bold)
+                    LaunchedEffect(feedPagerState.currentPage) {
+                        playingNowIsPlaying = true
+                    }
+                    if (currentEntry == null) {
+                        Text("अभी कोई playable episode उपलब्ध नहीं है", color = TextSecondary)
                     }
                 }
             }
