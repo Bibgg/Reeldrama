@@ -114,19 +114,44 @@ class ReelPlayerViewModel(
 
     fun selectDrama(dramaId: String, startEpisodeIndex: Int = 0) {
         repository.setCurrentDrama(dramaId, startEpisodeIndex)
-        val drama = repository.getCurrentDrama()
-        val episode = repository.getCurrentEpisode()
+        val selected = repository.getCurrentDrama()
+        val selectedEpisode = repository.getCurrentEpisode()
         _uiState.value = _uiState.value.copy(
-            currentDrama = drama,
-            currentEpisode = episode,
+            currentDrama = selected,
+            currentEpisode = selectedEpisode,
             currentPositionMs = 0L,
-            isPlaying = episode.videoUrl.isNotBlank(),
-            isBookmarked = repository.bookmarkedSeriesIds.value.contains(drama.id),
-            comments = repository.getCommentsForEpisode(episode.id),
+            isPlaying = selectedEpisode.videoUrl.isNotBlank(),
+            isBookmarked = repository.bookmarkedSeriesIds.value.contains(selected.id),
+            comments = repository.getCommentsForEpisode(selectedEpisode.id),
             activeSheet = ActiveSheet.NONE
         )
-        emitFeedback("Switched to ${drama.title}")
-        if (drama.id != "no_content") viewModelScope.launch { repository.registerView(drama.id) }
+        emitFeedback("Switched to ${selected.title}")
+        if (selected.id != "no_content") viewModelScope.launch { repository.registerView(selected.id) }
+
+        // ShortMax catalogue metadata is shown immediately; fetch expiring playback
+        // URLs only after the user chooses a series.
+        if (selected.id.startsWith("shortmax-") && selected.episodes.isEmpty()) {
+            viewModelScope.launch {
+                repository.loadEpisodesForDrama(selected.id)
+                    .onSuccess { count ->
+                        val refreshed = repository.getCurrentDrama()
+                        val episodeIndex = startEpisodeIndex.coerceIn(0, (refreshed.episodes.size - 1).coerceAtLeast(0))
+                        val episode = refreshed.episodes.getOrNull(episodeIndex) ?: repository.getCurrentEpisode()
+                        _uiState.value = _uiState.value.copy(
+                            currentDrama = refreshed,
+                            currentEpisode = episode,
+                            currentPositionMs = 0L,
+                            isPlaying = episode.videoUrl.isNotBlank(),
+                            comments = repository.getCommentsForEpisode(episode.id)
+                        )
+                        if (count == 0) emitFeedback("इस ड्रामा के वीडियो एपिसोड अभी उपलब्ध नहीं हैं।")
+                        else emitFeedback("$count एपिसोड लोड हुए")
+                    }
+                    .onFailure { error ->
+                        emitFeedback("एपिसोड लोड नहीं हुए: ${(error.message ?: error.javaClass.simpleName).take(120)}")
+                    }
+            }
+        }
     }
 
     fun selectEpisode(index: Int) {
