@@ -175,19 +175,27 @@ fun EpisodesBottomSheet(
             Spacer(modifier = Modifier.height(14.dp))
 
             // Range switcher tabs: "1 - 20", "21 - 40", "41 - 60"
-            val totalEps = drama.totalEpisodes
-            val ranges = remember(totalEps) {
-                val list = mutableListOf<Pair<Int, Int>>()
-                var start = 1
-                while (start <= totalEps) {
-                    val end = minOf(start + 19, totalEps)
-                    list.add(Pair(start, end))
-                    start += 20
+            // Use episodes actually loaded; advertised totals may include unavailable episodes.
+            val sortedEpisodes = remember(drama.id, drama.episodes) {
+                drama.episodes.sortedBy { it.episodeNumber }
+            }
+            val highestLoadedEpisode = sortedEpisodes.maxOfOrNull { it.episodeNumber } ?: 0
+            val ranges = remember(highestLoadedEpisode) {
+                buildList {
+                    var start = 1
+                    while (start <= highestLoadedEpisode) {
+                        add(start to minOf(start + 19, highestLoadedEpisode))
+                        start += 20
+                    }
                 }
-                list
             }
 
-            var selectedRangeIndex by remember { mutableIntStateOf(0) }
+            var selectedRangeIndex by remember(drama.id) { mutableIntStateOf(0) }
+            val selectedRange = ranges.getOrNull(selectedRangeIndex)
+            val visibleEpisodes = remember(sortedEpisodes, selectedRange) {
+                if (selectedRange == null) emptyList()
+                else sortedEpisodes.filter { it.episodeNumber in selectedRange.first..selectedRange.second }
+            }
 
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -250,13 +258,14 @@ fun EpisodesBottomSheet(
                         }
                     }
                 } else {
-                    itemsIndexed(drama.episodes) { index, ep ->
-                        val isCurrentlyPlaying = index == currentEpisodeIndex
+                    itemsIndexed(visibleEpisodes, key = { _, ep -> ep.id }) { _, ep ->
+                        val originalIndex = drama.episodes.indexOfFirst { it.id == ep.id }
+                        val isCurrentlyPlaying = originalIndex == currentEpisodeIndex
                         EpisodeItemCard(
                             episode = ep,
                             isPlaying = isCurrentlyPlaying,
                             onSelect = {
-                                onEpisodeSelected(index)
+                                if (originalIndex >= 0) onEpisodeSelected(originalIndex)
                                 onDismiss()
                             }
                         )
