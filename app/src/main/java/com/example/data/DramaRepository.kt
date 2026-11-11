@@ -102,7 +102,13 @@ private fun Map<*, *>.smLong(vararg keys: String): Long =
 private fun Map<*, *>.smTags(): List<String> {
     val raw = this["tags"] ?: this["genres"] ?: this["tag"]
     return when (raw) {
-        is List<*> -> raw.mapNotNull { it?.toString()?.takeIf(String::isNotBlank) }
+        is List<*> -> raw.mapNotNull { tag ->
+            when (tag) {
+                is Map<*, *> -> tag.smText("labelName", "name", "label", "title")
+                    .takeIf(String::isNotBlank)
+                else -> tag?.toString()?.takeIf(String::isNotBlank)
+            }
+        }
         is String -> raw.split(",", "|").map(String::trim).filter(String::isNotBlank)
         else -> emptyList()
     }
