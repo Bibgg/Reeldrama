@@ -280,34 +280,54 @@ router.get('/admin/providers/:provider/episodes/:code', requireAdmin, async (req
 
 // Read-only ShortMax catalogue endpoints for the app's private integration test.
 // Provider credentials remain on the server; signed episode URLs are fetched fresh.
+const shortMaxPopularCache = new Map();
+const shortMaxPopularInFlight = new Map();
+const SHORTMAX_CACHE_TTL_MS = 15 * 60 * 1000;
+const SHORTMAX_STALE_MAX_MS = 48 * 60 * 60 * 1000;
+
 router.get('/providers/shortmax/popular', async (req, res) => {
   const lang = String(req.query.lang || 'id').toLowerCase();
   const page = Math.max(1, Math.min(1000, Number.parseInt(req.query.page || '1', 10) || 1));
   if (!/^[a-z]{2,5}(_[a-z]{2})?$/.test(lang)) {
     return res.status(400).json({ success: false, message: 'Invalid language code.' });
   }
+
+  const cacheKey = `${lang}:${page}`;
+  const now = Date.now();
+  const cached = shortMaxPopularCache.get(cacheKey);
+  if (cached && now - cached.savedAt < SHORTMAX_CACHE_TTL_MS) {
+    res.set('Cache-Control', 'private, max-age=300');
+    res.set('X-Catalog-Cache', 'HIT');
+    return res.json({ success: true, provider: 'shortmax', lang, page, data: cached.data, cached: true });
+  }
+
   try {
-    const data = await callApiShort('shortmax/api/v1/popular', { lang, page });
-    // Temporary shape-only diagnostic: log field names, never provider data or signed URLs.
-    const shapeOf = (value, depth = 0) => {
-      if (depth > 4 || value == null) return Array.isArray(value) ? 'array' : typeof value;
-      if (Array.isArray(value)) return { type: 'array', length: value.length, first: value.length ? shapeOf(value[0], depth + 1) : null };
-      if (typeof value === 'object') {
-        const keys = Object.keys(value);
-        const sample = {};
-        for (const key of keys.slice(0, 30)) {
-          const child = value[key];
-          sample[key] = child && typeof child === 'object' ? shapeOf(child, depth + 1) : typeof child;
-        }
-        return { type: 'object', keys, sample };
-      }
-      return typeof value;
-    };
-    console.log('[ShortMax catalog shape]', JSON.stringify(shapeOf(data)));
-    res.set('Cache-Control', 'private, max-age=60');
+    // Concurrent app refreshes share one provider request instead of consuming quota separately.
+    let pending = shortMaxPopularInFlight.get(cacheKey);
+    if (!pending) {
+      pending = callApiShort('shortmax/api/v1/popular', { lang, page })
+        .then(data => {
+          shortMaxPopularCache.set(cacheKey, { data, savedAt: Date.now() });
+          return data;
+        })
+        .finally(() => shortMaxPopularInFlight.delete(cacheKey));
+      shortMaxPopularInFlight.set(cacheKey, pending);
+    }
+    const data = await pending;
+    res.set('Cache-Control', 'private, max-age=300');
+    res.set('X-Catalog-Cache', 'MISS');
     return res.json({ success: true, provider: 'shortmax', lang, page, data });
   } catch (error) {
-    return res.status(error.status || 502).json({ success: false, message: error.message });
+    // If the provider temporarily rate-limits us, keep serving the last known catalogue.
+    const stale = shortMaxPopularCache.get(cacheKey);
+    if (stale && Date.now() - stale.savedAt < SHORTMAX_STALE_MAX_MS) {
+      res.set('Cache-Control', 'private, max-age=300');
+      res.set('X-Catalog-Cache', 'STALE');
+      return res.json({ success: true, provider: 'shortmax', lang, page, data: stale.data, cached: true, stale: true });
+    }
+    const status = error.status === 429 ? 429 : (error.status || 502);
+    if (status === 429) res.set('Retry-After', '60');
+    return res.status(status).json({ success: false, message: error.message, retryAfterSeconds: status === 429 ? 60 : undefined });
   }
 });
 
