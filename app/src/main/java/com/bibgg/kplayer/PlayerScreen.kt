@@ -394,7 +394,15 @@ private fun FullScreenMusicVisualizer(onExit: () -> Unit) {
             val c = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
             val r = size.minDimension * 0.27f
             val brush = Brush.sweepGradient(rainbow)
-            for (i in 0..4) drawCircle(brush, c, r + i * 15.dp.toPx(), style = Stroke(if (i == 0) 9.dp.toPx() else 3.dp.toPx()), alpha = if (i == 0) 0.95f else 0.5f)
+            for (i in 0..4) {
+                drawCircle(
+                    brush = brush,
+                    center = c,
+                    radius = r + i * 15.dp.toPx(),
+                    style = Stroke(width = if (i == 0) 9.dp.toPx() else 3.dp.toPx()),
+                    alpha = if (i == 0) 0.95f else 0.5f
+                )
+            }
             for (i in 0 until 72) {
                 val angle = Math.toRadians(i * 5.0 + rotation)
                 val inner = r + 78.dp.toPx()
