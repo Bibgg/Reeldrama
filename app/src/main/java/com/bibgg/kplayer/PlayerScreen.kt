@@ -58,27 +58,16 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var speedMenuOpen by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
 
+    SideEffect {
+        // Allow all four natural device orientations while the video is open:
+        // portrait, reverse portrait, landscape, and reverse landscape.
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+    }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
-            }
-
-            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                val width = videoSize.width.toLong()
-                val height = videoSize.height.toLong()
-                if (width <= 0L || height <= 0L) return
-
-                // Account for rotation metadata (for example, phone-recorded 90° video).
-                val rotated = videoSize.unappliedRotationDegrees % 180 != 0
-                val displayWidth = if (rotated) height else width
-                val displayHeight = if (rotated) width else height
-
-                activity?.requestedOrientation = if (displayWidth >= displayHeight) {
-                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-                }
             }
         }
         player.addListener(listener)
