@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.view.Surface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,8 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,11 +60,14 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var zoomMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
     var speedMenuOpen by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
+    var orientationLocked by remember { mutableStateOf(false) }
 
     SideEffect {
         // Allow all four natural device orientations while the video is open:
         // portrait, reverse portrait, landscape, and reverse landscape.
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        if (!orientationLocked) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        }
     }
 
     DisposableEffect(player) {
@@ -144,6 +150,30 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         letterSpacing = 2.sp,
                         modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = {
+                            if (orientationLocked) {
+                                orientationLocked = false
+                                activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                            } else {
+                                val rotation = activity?.windowManager?.defaultDisplay?.rotation ?: Surface.ROTATION_0
+                                val lockedOrientation = when (rotation) {
+                                    Surface.ROTATION_90 -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                    Surface.ROTATION_180 -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+                                    Surface.ROTATION_270 -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                                    else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                }
+                                orientationLocked = true
+                                activity?.requestedOrientation = lockedOrientation
+                            }
+                        }
+                    ) {
+                        Icon(
+                            if (orientationLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = if (orientationLocked) "Unlock screen rotation" else "Lock current screen orientation",
+                            tint = if (orientationLocked) Color(0xFFB8F36B) else Color.White
+                        )
+                    }
                     Box {
                         TextButton(onClick = { speedMenuOpen = true }) {
                             Text("${playbackSpeed}x", color = Color.White, fontWeight = FontWeight.Bold)
