@@ -61,6 +61,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var speedMenuOpen by remember { mutableStateOf(false) }
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var orientationLocked by remember { mutableStateOf(false) }
+    var rewindHold by remember { mutableStateOf(false) }
 
     SideEffect {
         // Allow all four natural device orientations while the video is open:
@@ -92,6 +93,15 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         }
     }
 
+    // ExoPlayer does not support negative playback speed. Simulate 2x rewind
+    // by seeking backward twice as fast as real time while the left side is held.
+    LaunchedEffect(rewindHold) {
+        while (rewindHold) {
+            player.seekTo((player.currentPosition - 200L).coerceAtLeast(0L))
+            delay(100)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -100,27 +110,37 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(player, duration) {
+                .pointerInput(player, duration, playbackSpeed) {
                     detectTapGestures(
                         onPress = { point ->
-                            // Telegram-style: holding the right half temporarily plays at 2x.
-                            tryAwaitRelease()
-                            if (point.x >= size.width / 2f) {
-                                player.setPlaybackSpeed(playbackSpeed)
+                            val isLeftSide = point.x < size.width / 2f
+                            val released = tryAwaitRelease()
+                            if (rewindHold) rewindHold = false
+                            player.setPlaybackSpeed(playbackSpeed)
+                            if (!released) {
+                                rewindHold = false
                             }
                         },
                         onLongPress = { point ->
-                            if (point.x >= size.width / 2f) {
+                            if (point.x < size.width / 2f) {
+                                // Hold left side: rewind at an effective 2x rate.
+                                rewindHold = true
+                            } else {
+                                // Hold right side: play forward at 2x speed.
+                                rewindHold = false
                                 player.setPlaybackSpeed(2f)
                             }
                         },
                         onTap = { controlsVisible = !controlsVisible },
                         onDoubleTap = { point ->
+                            // Double-tap skips 5 seconds in either direction.
                             if (point.x < size.width / 2f) {
-                                player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L))
+                                rewindHold = false
+                                player.setPlaybackSpeed(playbackSpeed)
+                                player.seekTo((player.currentPosition - 5_000L).coerceAtLeast(0L))
                             } else {
                                 val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                                player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
+                                player.seekTo((player.currentPosition + 5_000L).coerceAtMost(end))
                             }
                             controlsVisible = true
                         }
@@ -279,7 +299,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Double tap left/right to seek 1 second",
+                        "Hold left/right: 2x rewind/play  •  Double tap: skip 5 seconds",
                         color = Color(0xFFB6B6B6),
                         fontSize = 10.sp,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
