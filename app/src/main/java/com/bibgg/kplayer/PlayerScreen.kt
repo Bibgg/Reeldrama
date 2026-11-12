@@ -206,6 +206,69 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         }
                     )
                 },
+                .pointerInput(player, activity, context) {
+                    var gestureAxis = 0 // 1 = horizontal seek, 2 = vertical control
+                    var totalDragX = 0f
+                    var totalDragY = 0f
+                    var initialBrightness = 0.5f
+                    var initialVolume = 0
+                    var maxVolume = 1
+                    var dragStartOnLeft = true
+                    detectDragGestures(
+                        onDragStart = { start ->
+                            gestureAxis = 0
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            dragStartOnLeft = start.x < size.width / 2f
+                            initialBrightness = activity?.window?.attributes?.screenBrightness
+                                ?.takeIf { it >= 0f } ?: 0.5f
+                            val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                            initialVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                            maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+                            seekDeltaMs = 0L
+                            rewindHold = false
+                        },
+                        onDragEnd = { gestureAxis = 0 },
+                        onDragCancel = { gestureAxis = 0 }
+                    ) { change, dragAmount ->
+                        totalDragX += dragAmount.x
+                        totalDragY += dragAmount.y
+                        if (gestureAxis == 0) {
+                            gestureAxis = if (kotlin.math.abs(totalDragX) > kotlin.math.abs(totalDragY)) 1 else 2
+                        }
+                        change.consume()
+                        when (gestureAxis) {
+                            1 -> {
+                                // Horizontal gesture owns this touch until release: seek only.
+                                val delta = (dragAmount.x * 80f).toLong()
+                                val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                                player.seekTo((player.currentPosition + delta).coerceIn(0L, end))
+                                seekDeltaMs += delta
+                                gestureIndicator = if (seekDeltaMs >= 0L) "SEEK FORWARD" else "SEEK BACKWARD"
+                                gestureValue = (player.currentPosition.toFloat() / end.coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
+                            }
+                            2 -> if (dragStartOnLeft) {
+                                // Left-side vertical gesture owns this touch: brightness only.
+                                val updated = (initialBrightness - totalDragY / size.height).coerceIn(0.01f, 1f)
+                                val params = activity?.window?.attributes
+                                if (params != null) {
+                                    params.screenBrightness = updated
+                                    activity.window.attributes = params
+                                }
+                                gestureIndicator = "BRIGHTNESS"
+                                gestureValue = updated
+                            } else {
+                                // Right-side vertical gesture owns this touch: volume only.
+                                val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                                val steps = (-totalDragY / (size.height.toFloat() / maxVolume)).toInt()
+                                val updated = (initialVolume + steps).coerceIn(0, maxVolume)
+                                audio.setStreamVolume(AudioManager.STREAM_MUSIC, updated, 0)
+                                gestureIndicator = "VOLUME"
+                                gestureValue = updated.toFloat() / maxVolume
+                            }
+                        }
+                    }
+                },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     setPlayer(player)
@@ -226,37 +289,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
 
         }
         if (!backgroundMusicEnabled) {
-            Box(
-                modifier = Modifier.fillMaxSize().pointerInput(activity) {
-                    detectDragGestures(onDragStart = { seekDeltaMs = 0L }) { change, dragAmount ->
-                        val leftHalf = change.position.x < size.width / 2f
-                        change.consume()
-                        if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
-                            val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                            val delta = (dragAmount.x * 80f).toLong()
-                            player.seekTo((player.currentPosition + delta).coerceIn(0L, end))
-                            seekDeltaMs += delta
-                            gestureIndicator = if (seekDeltaMs >= 0L) "SEEK FORWARD" else "SEEK BACKWARD"
-                            gestureValue = (player.currentPosition.toFloat() / end.coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
-                        } else if (leftHalf) {
-                            val current = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f
-                            val updated = (current - dragAmount.y / size.height).coerceIn(0.01f, 1f)
-                            val params = activity?.window?.attributes
-                            if (params != null) { params.screenBrightness = updated; activity?.window?.attributes = params }
-                            gestureIndicator = "BRIGHTNESS"
-                            gestureValue = updated
-                        } else {
-                            val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-                            val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                            val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-                            val updated = (current + if (dragAmount.y < 0f) 1 else -1).coerceIn(0, maxVolume)
-                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, updated, 0)
-                            gestureIndicator = "VOLUME"
-                            gestureValue = updated.toFloat() / maxVolume.coerceAtLeast(1)
-                        }
-                    }
-                }
-            )
+            // Display-only overlay: it never intercepts touches from the player.
             if (gestureIndicator.isNotEmpty()) {
                 LaunchedEffect(gestureIndicator, gestureValue) { delay(900); gestureIndicator = "" }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
