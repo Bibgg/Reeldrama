@@ -183,7 +183,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             gestureAxis = 0
                             totalDragX = 0f
                             totalDragY = 0f
-                            dragStartOnLeft = start.x < size.width / 2f
+                            dragStartOnLeft = start.x < this@pointerInput.size.width / 2f
                             initialBrightness = activity?.window?.attributes?.screenBrightness
                                 ?.takeIf { it >= 0f } ?: 0.5f
                             val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
@@ -213,7 +213,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             }
                             2 -> if (dragStartOnLeft) {
                                 // Left-side vertical gesture owns this touch: brightness only.
-                                val updated = (initialBrightness - totalDragY / size.height).coerceIn(0.01f, 1f)
+                                val updated = (initialBrightness - totalDragY / this@pointerInput.size.height).coerceIn(0.01f, 1f)
                                 val params = activity?.window?.attributes
                                 if (params != null) {
                                     params.screenBrightness = updated
@@ -232,7 +232,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             }
                         }
                     }
-                },
+                }
                 .pointerInput(player, duration, playbackSpeed) {
                     detectTapGestures(
                         onPress = { point ->
@@ -268,8 +268,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             controlsVisible = true
                         }
                     )
-                }
-                
+                },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     setPlayer(player)
