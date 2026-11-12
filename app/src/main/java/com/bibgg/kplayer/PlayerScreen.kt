@@ -102,6 +102,18 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                 .fillMaxSize()
                 .pointerInput(player, duration) {
                     detectTapGestures(
+                        onPress = { point ->
+                            // Telegram-style: holding the right half temporarily plays at 2x.
+                            tryAwaitRelease()
+                            if (point.x >= size.width / 2f) {
+                                player.setPlaybackSpeed(playbackSpeed)
+                            }
+                        },
+                        onLongPress = { point ->
+                            if (point.x >= size.width / 2f) {
+                                player.setPlaybackSpeed(2f)
+                            }
+                        },
                         onTap = { controlsVisible = !controlsVisible },
                         onDoubleTap = { point ->
                             if (point.x < size.width / 2f) {
