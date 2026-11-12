@@ -224,7 +224,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             } else {
                                 // Right-side vertical gesture owns this touch: volume only.
                                 val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
-                                val steps = (-totalDragY / (size.height.toFloat() / maxVolume)).toInt()
+                                val steps = (-totalDragY / (this@pointerInput.size.height.toFloat() / maxVolume)).toInt()
                                 val updated = (initialVolume + steps).coerceIn(0, maxVolume)
                                 audio.setStreamVolume(AudioManager.STREAM_MUSIC, updated, 0)
                                 gestureIndicator = "VOLUME"
@@ -236,7 +236,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                 .pointerInput(player, duration, playbackSpeed) {
                     detectTapGestures(
                         onPress = { point ->
-                            val isLeftSide = point.x < size.width / 2f
+                            val isLeftSide = point.x < this@pointerInput.size.width / 2f
                             val released = tryAwaitRelease()
                             if (rewindHold) rewindHold = false
                             player.setPlaybackSpeed(playbackSpeed)
@@ -245,7 +245,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             }
                         },
                         onLongPress = { point ->
-                            if (point.x < size.width / 2f) {
+                            if (point.x < this@pointerInput.size.width / 2f) {
                                 // Hold left side: rewind at an effective 2x rate.
                                 rewindHold = true
                             } else {
@@ -257,7 +257,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         onTap = { controlsVisible = !controlsVisible },
                         onDoubleTap = { point ->
                             // Double-tap skips 5 seconds in either direction.
-                            if (point.x < size.width / 2f) {
+                            if (point.x < this@pointerInput.size.width / 2f) {
                                 rewindHold = false
                                 player.setPlaybackSpeed(playbackSpeed)
                                 player.seekTo((player.currentPosition - 5_000L).coerceAtLeast(0L))
