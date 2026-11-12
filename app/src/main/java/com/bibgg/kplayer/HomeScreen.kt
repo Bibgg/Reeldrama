@@ -1,8 +1,12 @@
 package com.bibgg.kplayer
 
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GraphicEq
@@ -15,11 +19,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun HomeScreen(onOpenVideo: () -> Unit) {
+fun HomeScreen(
+    videos: List<LocalVideo>,
+    hasVideoAccess: Boolean,
+    onRequestVideoAccess: () -> Unit,
+    onOpenLocalVideo: (Uri) -> Unit,
+    onOpenVideo: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -31,7 +42,12 @@ fun HomeScreen(onOpenVideo: () -> Unit) {
                 .padding(horizontal = 24.dp, vertical = 30.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -93,6 +109,44 @@ fun HomeScreen(onOpenVideo: () -> Unit) {
                         Text("Local playback is ready to explore", color = Color(0xFF9BA69D), fontSize = 12.sp)
                     }
                 }
+
+                Spacer(Modifier.height(28.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("VIDEOS ON THIS DEVICE", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    Text(videos.size.toString(), color = Color(0xFFB8F36B), fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(10.dp))
+
+                when {
+                    !hasVideoAccess -> {
+                        Text("Allow video access to show videos stored on your phone.", color = Color(0xFF9BA69D), fontSize = 12.sp)
+                        Spacer(Modifier.height(8.dp))
+                        TextButton(onClick = onRequestVideoAccess) { Text("Allow access", color = Color(0xFFB8F36B)) }
+                    }
+                    videos.isEmpty() -> {
+                        Text("No videos found on this device.", color = Color(0xFF9BA69D), fontSize = 12.sp)
+                    }
+                    else -> {
+                        videos.forEach { video ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { onOpenLocalVideo(video.uri) }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Play video", tint = Color(0xFFB8F36B))
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(video.name, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(formatLibraryDuration(video.durationMs), color = Color(0xFF9BA69D), fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
 
             Column {
@@ -119,4 +173,11 @@ fun HomeScreen(onOpenVideo: () -> Unit) {
             }
         }
     }
+}
+
+private fun formatLibraryDuration(milliseconds: Long): String {
+    val totalSeconds = (milliseconds / 1000L).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
+    return "%d:%02d".format(minutes, seconds)
 }
