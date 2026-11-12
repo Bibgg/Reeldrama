@@ -212,7 +212,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         Text("-5s", color = Color.White, fontSize = 12.sp)
                     }
                     IconButton(
-                        onClick = { player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L)) },
+                        onClick = {},
                         modifier = Modifier
                             .size(52.dp)
                             .pointerInput(player) {
@@ -254,10 +254,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         )
                     }
                     IconButton(
-                        onClick = {
-                            val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                            player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
-                        },
+                        onClick = {},
                         modifier = Modifier
                             .size(52.dp)
                             .pointerInput(player) {
