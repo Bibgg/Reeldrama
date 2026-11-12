@@ -1,5 +1,8 @@
 package com.bibgg.kplayer
 
+import android.app.Activity
+import android.content.ContextWrapper
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -32,6 +35,13 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     val context = LocalContext.current
+    val activity = remember(context) {
+        var current = context
+        while (current is ContextWrapper && current !is Activity) {
+            current = current.baseContext
+        }
+        current as? Activity
+    }
     val player = remember(videoUri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(videoUri))
@@ -53,10 +63,28 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             override fun onIsPlayingChanged(playing: Boolean) {
                 isPlaying = playing
             }
+
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                val width = videoSize.width.toLong()
+                val height = videoSize.height.toLong()
+                if (width <= 0L || height <= 0L) return
+
+                // Account for rotation metadata (for example, phone-recorded 90° video).
+                val rotated = videoSize.unappliedRotationDegrees % 180 != 0
+                val displayWidth = if (rotated) height else width
+                val displayHeight = if (rotated) width else height
+
+                activity?.requestedOrientation = if (displayWidth >= displayHeight) {
+                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                } else {
+                    ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+            }
         }
         player.addListener(listener)
         onDispose {
             player.removeListener(listener)
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
             player.release()
         }
     }
