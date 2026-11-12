@@ -3,11 +3,13 @@ package com.bibgg.kplayer
 import android.app.Activity
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.view.Surface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -79,6 +81,8 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var orientationLocked by remember { mutableStateOf(false) }
     var rewindHold by remember { mutableStateOf(false) }
     var backgroundMusicEnabled by remember { mutableStateOf(false) }
+    var gestureIndicator by remember { mutableStateOf("") }
+    var gestureValue by remember { mutableFloatStateOf(0f) }
     val musicRingTransition = rememberInfiniteTransition(label = "music-ring")
     val musicRingRotation by musicRingTransition.animateFloat(
         initialValue = 0f,
@@ -219,6 +223,45 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             }
         )
 
+        }
+        if (!backgroundMusicEnabled) {
+            Box(
+                modifier = Modifier.fillMaxSize().pointerInput(activity) {
+                    detectDragGestures { change, dragAmount ->
+                        val leftHalf = change.position.x < size.width / 2f
+                        change.consume()
+                        if (leftHalf) {
+                            val current = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f
+                            val updated = (current - dragAmount.y / size.height).coerceIn(0.01f, 1f)
+                            val params = activity?.window?.attributes
+                            if (params != null) { params.screenBrightness = updated; activity.window.attributes = params }
+                            gestureIndicator = "BRIGHTNESS"
+                            gestureValue = updated
+                        } else {
+                            val audio = context.getSystemService(android.content.Context.AUDIO_SERVICE) as AudioManager
+                            val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+                            val updated = (current + if (dragAmount.y < 0f) 1 else -1).coerceIn(0, maxVolume)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, updated, 0)
+                            gestureIndicator = "VOLUME"
+                            gestureValue = updated.toFloat() / maxVolume.coerceAtLeast(1)
+                        }
+                    }
+                }
+            )
+            if (gestureIndicator.isNotEmpty()) {
+                LaunchedEffect(gestureIndicator, gestureValue) { delay(900); gestureIndicator = "" }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Surface(color = Color(0xCC171717), shape = MaterialTheme.shapes.large) {
+                        Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(gestureIndicator, color = Color.White, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(progress = { gestureValue.coerceIn(0f, 1f) }, color = Color(0xFFB8F36B), trackColor = Color(0xFF666666))
+                            Text((gestureValue * 100).toInt().toString() + "%", color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
         }
         LaunchedEffect(backgroundMusicEnabled, player) {
             player.trackSelectionParameters = player.trackSelectionParameters
