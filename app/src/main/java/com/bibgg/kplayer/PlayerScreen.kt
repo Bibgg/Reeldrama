@@ -17,8 +17,12 @@ import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Forward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +42,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val activity = remember(context) {
         var current = context
         while (current is ContextWrapper && current !is Activity) {
@@ -62,6 +67,9 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var playbackSpeed by remember { mutableFloatStateOf(1f) }
     var orientationLocked by remember { mutableStateOf(false) }
     var rewindHold by remember { mutableStateOf(false) }
+    var backgroundMusicEnabled by remember { mutableStateOf(false) }
+    var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
+    var wasPlayingBeforeBackground by remember { mutableStateOf(false) }
 
     SideEffect {
         // Allow all four natural device orientations while the video is open:
@@ -69,6 +77,31 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         if (!orientationLocked) {
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
         }
+    }
+
+    DisposableEffect(lifecycleOwner, player, backgroundMusicEnabled) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    wasPlayingBeforeBackground = player.isPlaying
+                    if (backgroundMusicEnabled) {
+                        // Keep audio playing, but detach the video surface.
+                        playerViewRef?.setPlayer(null)
+                    } else {
+                        // Background playback disabled: stop both picture and sound.
+                        player.pause()
+                    }
+                }
+                Lifecycle.Event.ON_START -> {
+                    playerViewRef?.setPlayer(player)
+                    if (wasPlayingBeforeBackground) player.play()
+                    wasPlayingBeforeBackground = false
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     DisposableEffect(player) {
@@ -149,13 +182,17 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     setPlayer(player)
+                    playerViewRef = this
                     useController = false
                     resizeMode = zoomMode
                     setKeepContentOnPlayerReset(true)
                 }
             },
             update = { view ->
-                view.setPlayer(player)
+                playerViewRef = view
+                if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                    view.setPlayer(player)
+                }
                 view.resizeMode = zoomMode
             }
         )
@@ -182,6 +219,15 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         letterSpacing = 2.sp,
                         modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = { backgroundMusicEnabled = !backgroundMusicEnabled }
+                    ) {
+                        Icon(
+                            Icons.Default.MusicNote,
+                            contentDescription = if (backgroundMusicEnabled) "Background audio on" else "Background audio off",
+                            tint = if (backgroundMusicEnabled) Color(0xFFB8F36B) else Color.White
+                        )
+                    }
                     IconButton(
                         onClick = {
                             if (orientationLocked) {
@@ -299,7 +345,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Hold left/right: 2x rewind/play  •  Double tap: skip 5 seconds",
+                        "Background audio: ${if (backgroundMusicEnabled) "ON" else "OFF"}  •  Hold left/right: 2x rewind/play  •  Double tap: skip 5 seconds",
                         color = Color(0xFFB6B6B6),
                         fontSize = 10.sp,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
