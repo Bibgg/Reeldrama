@@ -234,7 +234,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             val current = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f
                             val updated = (current - dragAmount.y / size.height).coerceIn(0.01f, 1f)
                             val params = activity?.window?.attributes
-                            if (params != null) { params.screenBrightness = updated; activity.window.attributes = params }
+                            if (params != null) { params.screenBrightness = updated; activity?.window?.attributes = params }
                             gestureIndicator = "BRIGHTNESS"
                             gestureValue = updated
                         } else {
