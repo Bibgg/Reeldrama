@@ -83,6 +83,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var backgroundMusicEnabled by remember { mutableStateOf(false) }
     var gestureIndicator by remember { mutableStateOf("") }
     var gestureValue by remember { mutableFloatStateOf(0f) }
+    var seekDeltaMs by remember { mutableLongStateOf(0L) }
     val musicRingTransition = rememberInfiniteTransition(label = "music-ring")
     val musicRingRotation by musicRingTransition.animateFloat(
         initialValue = 0f,
@@ -230,7 +231,14 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     detectDragGestures { change, dragAmount ->
                         val leftHalf = change.position.x < size.width / 2f
                         change.consume()
-                        if (leftHalf) {
+                        if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
+                            val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                            val delta = (dragAmount.x * 80f).toLong()
+                            player.seekTo((player.currentPosition + delta).coerceIn(0L, end))
+                            seekDeltaMs += delta
+                            gestureIndicator = if (seekDeltaMs >= 0L) "SEEK FORWARD" else "SEEK BACKWARD"
+                            gestureValue = (player.currentPosition.toFloat() / end.coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
+                        } else if (leftHalf) {
                             val current = activity?.window?.attributes?.screenBrightness?.takeIf { it >= 0f } ?: 0.5f
                             val updated = (current - dragAmount.y / size.height).coerceIn(0.01f, 1f)
                             val params = activity?.window?.attributes
@@ -254,7 +262,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Surface(color = Color(0xCC171717), shape = MaterialTheme.shapes.large) {
                         Column(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(gestureIndicator, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(if (gestureIndicator.startsWith("SEEK")) "$gestureIndicator  ${if (seekDeltaMs >= 0L) "+" else ""}${formatTime(kotlin.math.abs(seekDeltaMs))}" else gestureIndicator, color = Color.White, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(8.dp))
                             LinearProgressIndicator(progress = { gestureValue.coerceIn(0f, 1f) }, color = Color(0xFFB8F36B), trackColor = Color(0xFF666666))
                             Text((gestureValue * 100).toInt().toString() + "%", color = Color.White, fontSize = 12.sp)
