@@ -6,6 +6,9 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.view.Surface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -34,6 +37,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
@@ -201,18 +205,43 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    TextButton(onClick = { player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L)) }) {
+                        Text("-10s", color = Color.White, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { player.seekTo((player.currentPosition - 5_000L).coerceAtLeast(0L)) }) {
+                        Text("-5s", color = Color.White, fontSize = 12.sp)
+                    }
                     IconButton(
                         onClick = { player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L)) },
-                        modifier = Modifier.size(60.dp)
+                        modifier = Modifier
+                            .size(52.dp)
+                            .pointerInput(player) {
+                                awaitEachGesture {
+                                    awaitFirstDown()
+                                    var longPressStarted = false
+                                    val repeatJob = launch {
+                                        delay(350)
+                                        longPressStarted = true
+                                        while (true) {
+                                            player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L))
+                                            delay(250)
+                                        }
+                                    }
+                                    val released = waitForUpOrCancellation()
+                                    repeatJob.cancel()
+                                    if (released != null && !longPressStarted) {
+                                        player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L))
+                                    }
+                                }
+                            }
                     ) {
-                        Icon(Icons.Default.Replay, contentDescription = "Back 1 second", tint = Color.White, modifier = Modifier.size(34.dp))
+                        Icon(Icons.Default.Replay, contentDescription = "Back 1 second; hold to keep rewinding", tint = Color.White, modifier = Modifier.size(30.dp))
                     }
-                    Spacer(Modifier.width(28.dp))
                     FilledIconButton(
                         onClick = {
                             if (player.isPlaying) player.pause() else player.play()
                         },
-                        modifier = Modifier.size(72.dp),
+                        modifier = Modifier.size(64.dp),
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = Color(0xFFB8F36B),
                             contentColor = Color(0xFF10150F)
@@ -221,18 +250,51 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         Icon(
                             if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         )
                     }
-                    Spacer(Modifier.width(28.dp))
                     IconButton(
                         onClick = {
                             val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
                             player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
                         },
-                        modifier = Modifier.size(60.dp)
+                        modifier = Modifier
+                            .size(52.dp)
+                            .pointerInput(player) {
+                                awaitEachGesture {
+                                    awaitFirstDown()
+                                    var longPressStarted = false
+                                    val repeatJob = launch {
+                                        delay(350)
+                                        longPressStarted = true
+                                        while (true) {
+                                            val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                                            player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
+                                            delay(250)
+                                        }
+                                    }
+                                    val released = waitForUpOrCancellation()
+                                    repeatJob.cancel()
+                                    if (released != null && !longPressStarted) {
+                                        val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                                        player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
+                                    }
+                                }
+                            }
                     ) {
-                        Icon(Icons.Default.Forward, contentDescription = "Forward 1 second", tint = Color.White, modifier = Modifier.size(34.dp))
+                        Icon(Icons.Default.Forward, contentDescription = "Forward 1 second; hold to keep seeking", tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    TextButton(onClick = {
+                        val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                        player.seekTo((player.currentPosition + 5_000L).coerceAtMost(end))
+                    }) {
+                        Text("+5s", color = Color.White, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = {
+                        val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                        player.seekTo((player.currentPosition + 10_000L).coerceAtMost(end))
+                    }) {
+                        Text("+10s", color = Color.White, fontSize = 12.sp)
                     }
                 }
 
@@ -267,7 +329,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Double tap left/right to seek 1 second",
+                        "Tap ±1s once, hold to move continuously; use ±5s or ±10s for quick jumps",
                         color = Color(0xFFB6B6B6),
                         fontSize = 10.sp,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
