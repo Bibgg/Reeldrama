@@ -93,14 +93,14 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                 },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
-                    player = player
+                    setPlayer(player)
                     useController = false
                     resizeMode = zoomMode
                     setKeepContentOnPlayerReset(true)
                 }
             },
             update = { view ->
-                view.player = player
+                view.setPlayer(player)
                 view.resizeMode = zoomMode
             }
         )
