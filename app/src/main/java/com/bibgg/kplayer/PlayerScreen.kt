@@ -13,8 +13,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Forward
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.*
@@ -105,10 +105,10 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         onTap = { controlsVisible = !controlsVisible },
                         onDoubleTap = { point ->
                             if (point.x < size.width / 2f) {
-                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                                player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L))
                             } else {
                                 val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                                player.seekTo((player.currentPosition + 10_000L).coerceAtMost(end))
+                                player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
                             }
                             controlsVisible = true
                         }
@@ -202,10 +202,10 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
-                        onClick = { player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L)) },
+                        onClick = { player.seekTo((player.currentPosition - 1_000L).coerceAtLeast(0L)) },
                         modifier = Modifier.size(60.dp)
                     ) {
-                        Icon(Icons.Default.Replay10, contentDescription = "Back 10 seconds", tint = Color.White, modifier = Modifier.size(34.dp))
+                        Icon(Icons.Default.Replay, contentDescription = "Back 1 second", tint = Color.White, modifier = Modifier.size(34.dp))
                     }
                     Spacer(Modifier.width(28.dp))
                     FilledIconButton(
@@ -228,11 +228,11 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                     IconButton(
                         onClick = {
                             val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                            player.seekTo((player.currentPosition + 10_000L).coerceAtMost(end))
+                            player.seekTo((player.currentPosition + 1_000L).coerceAtMost(end))
                         },
                         modifier = Modifier.size(60.dp)
                     ) {
-                        Icon(Icons.Default.Forward10, contentDescription = "Forward 10 seconds", tint = Color.White, modifier = Modifier.size(34.dp))
+                        Icon(Icons.Default.Forward, contentDescription = "Forward 1 second", tint = Color.White, modifier = Modifier.size(34.dp))
                     }
                 }
 
@@ -267,7 +267,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         )
                     }
                     Text(
-                        "Double tap left/right to seek 10 seconds",
+                        "Double tap left/right to seek 1 second",
                         color = Color(0xFFB6B6B6),
                         fontSize = 10.sp,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
