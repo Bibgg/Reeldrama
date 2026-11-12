@@ -130,7 +130,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     // by seeking backward twice as fast as real time while the left side is held.
     LaunchedEffect(rewindHold) {
         while (rewindHold) {
-            player.seekTo((player.currentPosition - 200L).coerceAtLeast(0L))
+            player.seekTo((player.currentPosition - 300L).coerceAtLeast(0L))
             delay(100)
         }
     }
