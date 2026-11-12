@@ -170,42 +170,6 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(player, duration, playbackSpeed) {
-                    detectTapGestures(
-                        onPress = { point ->
-                            val isLeftSide = point.x < size.width / 2f
-                            val released = tryAwaitRelease()
-                            if (rewindHold) rewindHold = false
-                            player.setPlaybackSpeed(playbackSpeed)
-                            if (!released) {
-                                rewindHold = false
-                            }
-                        },
-                        onLongPress = { point ->
-                            if (point.x < size.width / 2f) {
-                                // Hold left side: rewind at an effective 2x rate.
-                                rewindHold = true
-                            } else {
-                                // Hold right side: play forward at 2x speed.
-                                rewindHold = false
-                                player.setPlaybackSpeed(2f)
-                            }
-                        },
-                        onTap = { controlsVisible = !controlsVisible },
-                        onDoubleTap = { point ->
-                            // Double-tap skips 5 seconds in either direction.
-                            if (point.x < size.width / 2f) {
-                                rewindHold = false
-                                player.setPlaybackSpeed(playbackSpeed)
-                                player.seekTo((player.currentPosition - 5_000L).coerceAtLeast(0L))
-                            } else {
-                                val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                                player.seekTo((player.currentPosition + 5_000L).coerceAtMost(end))
-                            }
-                            controlsVisible = true
-                        }
-                    )
-                }
                 .pointerInput(player, activity, context) {
                     var gestureAxis = 0 // 1 = horizontal seek, 2 = vertical control
                     var totalDragX = 0f
@@ -269,6 +233,43 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         }
                     }
                 },
+                .pointerInput(player, duration, playbackSpeed) {
+                    detectTapGestures(
+                        onPress = { point ->
+                            val isLeftSide = point.x < size.width / 2f
+                            val released = tryAwaitRelease()
+                            if (rewindHold) rewindHold = false
+                            player.setPlaybackSpeed(playbackSpeed)
+                            if (!released) {
+                                rewindHold = false
+                            }
+                        },
+                        onLongPress = { point ->
+                            if (point.x < size.width / 2f) {
+                                // Hold left side: rewind at an effective 2x rate.
+                                rewindHold = true
+                            } else {
+                                // Hold right side: play forward at 2x speed.
+                                rewindHold = false
+                                player.setPlaybackSpeed(2f)
+                            }
+                        },
+                        onTap = { controlsVisible = !controlsVisible },
+                        onDoubleTap = { point ->
+                            // Double-tap skips 5 seconds in either direction.
+                            if (point.x < size.width / 2f) {
+                                rewindHold = false
+                                player.setPlaybackSpeed(playbackSpeed)
+                                player.seekTo((player.currentPosition - 5_000L).coerceAtLeast(0L))
+                            } else {
+                                val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                                player.seekTo((player.currentPosition + 5_000L).coerceAtMost(end))
+                            }
+                            controlsVisible = true
+                        }
+                    )
+                }
+                
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     setPlayer(player)
