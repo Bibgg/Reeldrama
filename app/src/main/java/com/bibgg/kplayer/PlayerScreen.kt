@@ -205,7 +205,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                             controlsVisible = true
                         }
                     )
-                },
+                }
                 .pointerInput(player, activity, context) {
                     var gestureAxis = 0 // 1 = horizontal seek, 2 = vertical control
                     var totalDragX = 0f
