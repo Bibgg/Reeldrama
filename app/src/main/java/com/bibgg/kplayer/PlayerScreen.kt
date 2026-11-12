@@ -73,23 +73,24 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .pointerInput(player, duration) {
-                detectTapGestures(
-                    onTap = { controlsVisible = !controlsVisible },
-                    onDoubleTap = { point ->
-                        if (point.x < size.width / 2f) {
-                            player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
-                        } else {
-                            val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
-                            player.seekTo((player.currentPosition + 10_000L).coerceAtMost(end))
-                        }
-                        controlsVisible = true
-                    }
-                )
-            }
     ) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(player, duration) {
+                    detectTapGestures(
+                        onTap = { controlsVisible = !controlsVisible },
+                        onDoubleTap = { point ->
+                            if (point.x < size.width / 2f) {
+                                player.seekTo((player.currentPosition - 10_000L).coerceAtLeast(0L))
+                            } else {
+                                val end = player.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+                                player.seekTo((player.currentPosition + 10_000L).coerceAtMost(end))
+                            }
+                            controlsVisible = true
+                        }
+                    )
+                },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     player = player
