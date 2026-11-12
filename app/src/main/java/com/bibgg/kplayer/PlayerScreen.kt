@@ -228,7 +228,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
         if (!backgroundMusicEnabled) {
             Box(
                 modifier = Modifier.fillMaxSize().pointerInput(activity) {
-                    detectDragGestures { change, dragAmount ->
+                    detectDragGestures(onDragStart = { seekDeltaMs = 0L }) { change, dragAmount ->
                         val leftHalf = change.position.x < size.width / 2f
                         change.consume()
                         if (kotlin.math.abs(dragAmount.x) > kotlin.math.abs(dragAmount.y)) {
