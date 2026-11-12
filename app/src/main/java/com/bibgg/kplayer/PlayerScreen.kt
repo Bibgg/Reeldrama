@@ -6,6 +6,7 @@ import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.view.Surface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -20,12 +21,21 @@ import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +78,16 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
     var orientationLocked by remember { mutableStateOf(false) }
     var rewindHold by remember { mutableStateOf(false) }
     var backgroundMusicEnabled by remember { mutableStateOf(false) }
+    val musicRingTransition = rememberInfiniteTransition(label = "music-ring")
+    val musicRingRotation by musicRingTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "music-ring-rotation"
+    )
     var playerViewRef by remember { mutableStateOf<PlayerView?>(null) }
     var wasPlayingBeforeBackground by remember { mutableStateOf(false) }
 
@@ -220,13 +240,45 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(
-                        onClick = { backgroundMusicEnabled = !backgroundMusicEnabled }
+                        onClick = { backgroundMusicEnabled = !backgroundMusicEnabled },
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            Icons.Default.MusicNote,
-                            contentDescription = if (backgroundMusicEnabled) "Background audio on" else "Background audio off",
-                            tint = if (backgroundMusicEnabled) Color(0xFFB8F36B) else Color.White
-                        )
+                        Box(
+                            modifier = Modifier.size(38.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (backgroundMusicEnabled) {
+                                Canvas(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer { rotationZ = musicRingRotation }
+                                ) {
+                                    val ringBrush = Brush.sweepGradient(
+                                        listOf(
+                                            Color(0xFFFF1744),
+                                            Color(0xFFFF9100),
+                                            Color(0xFFFFFF00),
+                                            Color(0xFF00E676),
+                                            Color(0xFF00E5FF),
+                                            Color(0xFF2979FF),
+                                            Color(0xFFD500F9),
+                                            Color(0xFFFF1744)
+                                        )
+                                    )
+                                    drawCircle(
+                                        brush = ringBrush,
+                                        radius = size.minDimension / 2f - 2.dp.toPx(),
+                                        style = Stroke(width = 3.5.dp.toPx())
+                                    )
+                                }
+                            }
+                            Icon(
+                                Icons.Default.MusicNote,
+                                contentDescription = if (backgroundMusicEnabled) "Background audio on" else "Background audio off",
+                                tint = if (backgroundMusicEnabled) Color(0xFFFF4DFF) else Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                     IconButton(
                         onClick = {
