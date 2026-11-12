@@ -42,6 +42,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -160,6 +161,7 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        if (!backgroundMusicEnabled) {
         AndroidView(
             modifier = Modifier
                 .fillMaxSize()
@@ -217,7 +219,17 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
             }
         )
 
-        if (controlsVisible) {
+        }
+        LaunchedEffect(backgroundMusicEnabled, player) {
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, backgroundMusicEnabled)
+                .build()
+        }
+        if (backgroundMusicEnabled) {
+            FullScreenMusicVisualizer(onExit = { backgroundMusicEnabled = false })
+        }
+        if (controlsVisible && !backgroundMusicEnabled) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -239,46 +251,8 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         letterSpacing = 2.sp,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(
-                        onClick = { backgroundMusicEnabled = !backgroundMusicEnabled },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(38.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (backgroundMusicEnabled) {
-                                Canvas(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .graphicsLayer { rotationZ = musicRingRotation }
-                                ) {
-                                    val ringBrush = Brush.sweepGradient(
-                                        listOf(
-                                            Color(0xFFFF1744),
-                                            Color(0xFFFF9100),
-                                            Color(0xFFFFFF00),
-                                            Color(0xFF00E676),
-                                            Color(0xFF00E5FF),
-                                            Color(0xFF2979FF),
-                                            Color(0xFFD500F9),
-                                            Color(0xFFFF1744)
-                                        )
-                                    )
-                                    drawCircle(
-                                        brush = ringBrush,
-                                        radius = size.minDimension / 2f - 2.dp.toPx(),
-                                        style = Stroke(width = 3.5.dp.toPx())
-                                    )
-                                }
-                            }
-                            Icon(
-                                Icons.Default.MusicNote,
-                                contentDescription = if (backgroundMusicEnabled) "Background audio on" else "Background audio off",
-                                tint = if (backgroundMusicEnabled) Color(0xFFFF4DFF) else Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                    IconButton(onClick = { backgroundMusicEnabled = true }, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.MusicNote, contentDescription = "Open full-screen music visualizer", tint = Color.White, modifier = Modifier.size(23.dp))
                     }
                     IconButton(
                         onClick = {
@@ -403,6 +377,44 @@ fun PlayerScreen(videoUri: Uri, onBack: () -> Unit) {
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
                 }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun FullScreenMusicVisualizer(onExit: () -> Unit) {
+    val transition = rememberInfiniteTransition(label = "full-screen-music-visualizer")
+    val rotation by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(9000, easing = LinearEasing)), label = "rotation")
+    val pulse by transition.animateFloat(0.88f, 1.08f, infiniteRepeatable(tween(1100, easing = LinearEasing), repeatMode = RepeatMode.Reverse), label = "pulse")
+    val rainbow = listOf(Color(0xFFFF1744), Color(0xFFFF9100), Color(0xFFFFFF00), Color(0xFF00E676), Color(0xFF00E5FF), Color(0xFF2979FF), Color(0xFFD500F9), Color(0xFFFF1744))
+    Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF241039), Color(0xFF080612), Color.Black))), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val c = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+            val r = size.minDimension * 0.27f
+            val brush = Brush.sweepGradient(rainbow)
+            for (i in 0..4) drawCircle(brush, c, r + i * 15.dp.toPx(), style = Stroke(if (i == 0) 9.dp.toPx() else 3.dp.toPx()), alpha = if (i == 0) 0.95f else 0.5f)
+            for (i in 0 until 72) {
+                val angle = Math.toRadians(i * 5.0 + rotation)
+                val inner = r + 78.dp.toPx()
+                val length = (8 + (i % 7) * 2).dp.toPx()
+                drawLine(rainbow[i % (rainbow.size - 1)], androidx.compose.ui.geometry.Offset(c.x + kotlin.math.cos(angle).toFloat() * inner, c.y + kotlin.math.sin(angle).toFloat() * inner), androidx.compose.ui.geometry.Offset(c.x + kotlin.math.cos(angle).toFloat() * (inner + length), c.y + kotlin.math.sin(angle).toFloat() * (inner + length)), 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.size(142.dp).graphicsLayer { scaleX = pulse; scaleY = pulse; rotationZ = -rotation }.background(Brush.radialGradient(listOf(Color(0xFF542078), Color(0xFF160D25), Color.Black)), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.MusicNote, "Music playing", tint = Color.White, modifier = Modifier.size(76.dp))
+            }
+            Spacer(Modifier.height(34.dp))
+            Text("NOW PLAYING", color = Color.White, fontWeight = FontWeight.Bold, letterSpacing = 5.sp, fontSize = 13.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("K PLAYER", color = Color(0xFFE8C8FF), fontWeight = FontWeight.ExtraBold, letterSpacing = 3.sp, fontSize = 21.sp)
+            Spacer(Modifier.height(34.dp))
+            FilledTonalButton(onClick = onExit, colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF2D1B3D), contentColor = Color.White)) {
+                Icon(Icons.Default.MusicNote, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("BACK TO VIDEO")
             }
         }
     }
